@@ -11,6 +11,7 @@ import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
 interface ProcuraFormProps {
   onSubmitPdfOnly: (data: ProcuraFormData) => void;
   onSubmitAll: (data: ProcuraFormData) => void;
+  onSimulate: (sedeId: string) => void;
   isLoading: boolean;
 }
 
@@ -29,6 +30,7 @@ interface FormErrors {
 export function ProcuraForm({
   onSubmitPdfOnly,
   onSubmitAll,
+  onSimulate,
   isLoading,
 }: ProcuraFormProps) {
   // Form state
@@ -38,6 +40,8 @@ export function ProcuraForm({
     dataNascita: "",
     luogoNascita: "",
     codiceFiscale: "",
+    telefono: "", // 👈 جديد
+    email: "",
     numeroVestanet: "",
     sedeSelezionata: "",
     tipoRichiesta: "asilo" as TipoRichiesta,
@@ -87,8 +91,7 @@ export function ProcuraForm({
         break;
       case "codiceFiscale":
         if (!value.trim()) return "Il codice fiscale è obbligatorio";
-        if (value.length !== 16)
-          return "Il codice fiscale deve essere di 16 caratteri";
+
         if (!/^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/i.test(value)) {
           return "Il codice fiscale non è valido";
         }
@@ -99,6 +102,17 @@ export function ProcuraForm({
       case "numeroVestanet":
         if (value && !/^[A-Z]{2}[0-9]+$/.test(value))
           return "Deve iniziare con due lettere seguite solo da numeri (es. AB12345)";
+        break;
+      case "telefono":
+        if (!value.trim()) return "Il telefono è obbligatorio";
+        if (!/^(\+?[0-9]{8,15})$/.test(value))
+          return "Numero di telefono non valido";
+        break;
+
+      case "email":
+        if (!value.trim()) return "L'email è obbligatoria";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+          return "Email non valida";
         break;
     }
     return undefined;
@@ -136,6 +150,8 @@ export function ProcuraForm({
       "dataNascita",
       "luogoNascita",
       "codiceFiscale",
+      "telefono", // 👈
+      "email",
       "sedeSelezionata",
       "numeroVestanet",
     ];
@@ -155,7 +171,26 @@ export function ProcuraForm({
   };
 
   // Handle form submission
-  const handleSubmit = (mode: "pdf" | "all") => {
+  const handleSubmit = (mode: "pdf" | "all" | "simulate") => {
+    // 🟢 Simula → فقط sede
+    if (mode === "simulate") {
+      if (!formData.sedeSelezionata) {
+        setErrors((prev) => ({
+          ...prev,
+          sedeSelezionata: "La sede è obbligatoria",
+        }));
+        setTouched((prev) => ({
+          ...prev,
+          sedeSelezionata: true,
+        }));
+        return;
+      }
+
+      onSimulate(formData.sedeSelezionata);
+      return;
+    }
+
+    // 🟡 PDF + ALL → validate completo
     if (!validateAll()) return;
 
     const data: ProcuraFormData = {
@@ -163,11 +198,8 @@ export function ProcuraForm({
       codiceFiscale: formData.codiceFiscale.toUpperCase(),
     };
 
-    if (mode === "pdf") {
-      onSubmitPdfOnly(data);
-    } else {
-      onSubmitAll(data);
-    }
+    if (mode === "pdf") onSubmitPdfOnly(data);
+    else onSubmitAll(data);
   };
 
   // Input class helper
@@ -292,6 +324,43 @@ export function ProcuraForm({
           />
           {errors.codiceFiscale && touched.codiceFiscale && (
             <p className="mt-1 text-xs text-red-400">{errors.codiceFiscale}</p>
+          )}
+        </div>
+        {/* Telefono */}
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            Telefono <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            name="telefono"
+            value={formData.telefono}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            placeholder="+39 3331234567"
+            className={inputClass("telefono")}
+          />
+          {errors.telefono && touched.telefono && (
+            <p className="mt-1 text-xs text-red-400">{errors.telefono}</p>
+          )}
+        </div>
+
+        {/* Email */}
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            Email <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            placeholder="cliente@email.com"
+            className={inputClass("email")}
+          />
+          {errors.email && touched.email && (
+            <p className="mt-1 text-xs text-red-400">{errors.email}</p>
           )}
         </div>
 
@@ -424,6 +493,20 @@ export function ProcuraForm({
         </div>
 
         {/* Submit Buttons */}
+        <motion.button
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          type="button"
+          onClick={() => handleSubmit("simulate")}
+          className="
+    w-full py-3 px-4 rounded-lg font-medium transition-all
+    border border-blue-500/40 hover:border-blue-400
+    text-blue-300 hover:text-white
+    bg-blue-500/10 hover:bg-blue-500/20
+  "
+        >
+          PEC
+        </motion.button>
         <div className="pt-4 space-y-3">
           <motion.button
             whileHover={{ scale: 1.01 }}

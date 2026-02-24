@@ -88,7 +88,28 @@ export default function Home() {
       setIsLoading(false);
     }
   }, []);
+  /**
+   * Handle "Simula PEC" action
+   * Only resolves PEC without generating PDF or email
+   */
+  const handleSimulate = useCallback((sedeId: string) => {
+    setError(null);
 
+    const pecResolution = resolvePec(sedeId);
+
+    if (!pecResolution.success) {
+      setError(pecResolution.error);
+      setPecResult(null);
+      setEmail(null);
+      return;
+    }
+
+    // نعرض PEC فقط
+    setPecResult(pecResolution);
+
+    // نمسح أي Email سابق
+    setEmail(null);
+  }, []);
   /**
    * Handle manual PDF download from results panel
    */
@@ -123,6 +144,7 @@ export default function Home() {
             <ProcuraForm
               onSubmitPdfOnly={handlePdfOnly}
               onSubmitAll={handleGenerateAll}
+              onSimulate={handleSimulate}
               isLoading={isLoading}
             />
 

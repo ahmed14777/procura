@@ -8,77 +8,73 @@ import {
   StyleSheet,
   pdf,
 } from "@react-pdf/renderer";
-
 import type { ProcuraFormData } from "@/lib/schema";
 import { AVVOCATO } from "@/data/avvocato";
 
 /* =========================================================
-   Styles – classic legal layout (like scanned document)
+   STYLES – closer to real scanned legal paper
 ========================================================= */
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 25,
-    paddingBottom: 25,
-    paddingHorizontal: 50,
-    fontSize: 11,
+    paddingTop: 22,
+    paddingBottom: 22,
+    paddingHorizontal: 48,
+    fontSize: 10.5,
     fontFamily: "Times-Roman",
-    lineHeight: 1.4,
+    lineHeight: 1.15,
   },
 
   header: {
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 10,
   },
 
   studio: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "bold",
   },
 
   avvocato: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "bold",
-    marginBottom: 10,
+    marginBottom: 6,
   },
 
   title: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "bold",
-    marginBottom: 16,
+    marginBottom: 8,
   },
 
   date: {
     textAlign: "left",
-    marginBottom: 14,
+    marginBottom: 8,
   },
 
   paragraph: {
     textAlign: "justify",
-    marginBottom: 8,
+    marginBottom: 0,
   },
-  paragraphEmphasis: {
-    textAlign: "justify",
-    marginBottom: 8,
+
+  emphasis: {
     fontWeight: "bold",
   },
 
-  listItem: {
-    flexDirection: "row",
-    marginBottom: 4,
+  nominoTitle: {
+    textAlign: "center",
+    fontWeight: "bold",
+    marginTop: 6,
+    marginBottom: 6,
   },
 
-  bullet: {
-    width: 10,
-  },
-
-  listText: {
-    flex: 1,
+  block: {
     textAlign: "justify",
+    marginBottom: 0,
   },
 
   signatureArea: {
-    marginTop: 40,
+    marginTop: 18,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -91,41 +87,27 @@ const styles = StyleSheet.create({
   signatureLine: {
     borderBottomWidth: 1,
     borderBottomColor: "#000",
-    marginTop: 25,
-    marginBottom: 6,
+    marginTop: 22,
+    marginBottom: 5,
   },
 
   signatureLabel: {
-    fontSize: 10,
-  },
-
-  veraFirma: {
-    textAlign: "right",
-    marginTop: 20,
-    fontWeight: "bold",
-
-    marginBottom: 10,
-    fontSize: 10,
+    fontSize: 9.5,
   },
 
   footer: {
     position: "absolute",
-    bottom: 25,
-    left: 60,
-    right: 60,
+    bottom: 18,
+    left: 48,
+    right: 48,
     textAlign: "center",
-    fontSize: 9,
-  },
-
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: "bold",
-    marginBottom: 6,
+    fontSize: 8.8,
+    lineHeight: 1.2,
   },
 });
 
 /* =========================================================
-   Helpers
+   HELPERS
 ========================================================= */
 
 function formatDateItalian(dateString: string): string {
@@ -144,13 +126,11 @@ function formatDateItalian(dateString: string): string {
     "novembre",
     "dicembre",
   ];
-
   return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
 }
 
 function getCurrentDateItalian(): string {
   const now = new Date();
-  const day = now.getDate();
   const months = [
     "gennaio",
     "febbraio",
@@ -165,14 +145,27 @@ function getCurrentDateItalian(): string {
     "novembre",
     "dicembre",
   ];
-  const month = months[now.getMonth()];
-  const year = now.getFullYear();
-
-  return `${day} ${month} ${year}`;
+  return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
 }
 
 /* =========================================================
-   Blocks
+   FIXED NOMINO TEXT
+========================================================= */
+
+const TESTO_NOMINO_FISSO = `quale mio difensore e procuratore speciale in ogni fase e grado, anche nelle fasi dell'esecuzione, opposizione, incidentale, cautelare, ed in sede di gravame, l’Avv. Francesca Guicciardini del Foro di Milano, C.F. GCCFNC92H43A662W, nata a Bari il 03.06.1992, con studio in Milano, Via Mario Pieri n.2, conferendogli ogni più ampia facoltà di legge, ivi comprese le facoltà di transigere, conciliare, incassare, rinunciare agli atti ed accettarne la rinuncia, farsi rappresentare, assistere e sostituire, eleggere domicili, rinunziare alla comparizione delle parti, riassumere la causa, proseguirla, chiamare terzi in causa, deferire giuramento, proporre domande riconvenzionali ed azioni cautelari di qualsiasi genere e natura in corso di causa, chiedere ed accettare rendiconti, ed assumendo sin d’ora per rato e valido l’operato del suddetto legale, il quale procuratore dichiara di voler ricevere le comunicazioni a mezzo PEC: francesca.guicciardini@pec.it.
+
+Dichiaro di essere stato informato, ai sensi dell’art. 4, co. 3, D. Lgs. n. 28/2010, della possibilità di ricorrere al procedimento di mediazione ivi previsto e dei benefici fiscali di cui agli artt. 17 e 20 del medesimo decreto, nonché dei casi in cui l’esperimento del procedimento di mediazione è condizione di procedibilità della domanda giudiziale.
+
+Dichiaro di essere stato informato, ai sensi dell’art. 2, co. 7, D.L. n. 132/2014, della possibilità di ricorrere alla convenzione di negoziazione assistita da uno o più avvocati disciplinata dagli artt. 2 e ss. del suddetto decreto legge.
+
+Dichiaro, ai sensi e per gli effetti di cui al D. Lgs. n. 196/2003 e s.m.i., di essere stato informato che i miei dati personali, anche sensibili, verranno utilizzati per le finalità inerenti al presente mandato, autorizzando sin d'ora il rispettivo trattamento.
+
+Eleggo domicilio presso lo studio dell’Avv. Francesca Guicciardini, sito in Milano, Via Mario Pieri n. 2.
+
+Dichiaro di revocare ogni precedente mandato conferito.`;
+
+/* =========================================================
+   COMPONENTS
 ========================================================= */
 
 function Intestazione() {
@@ -193,141 +186,43 @@ function DataDocumento() {
   );
 }
 
-/* -------- main body (merged like the real paper) -------- */
-
-function CorpoPrincipale({ data }: { data: ProcuraFormData }) {
-  const vestanetLine = data.numeroVestanet
-    ? `, pratica VESTANET n. ${data.numeroVestanet}`
-    : "";
-
+function DatiCliente({ data }: { data: ProcuraFormData }) {
   return (
     <View>
       <Text style={styles.paragraph}>
         Io sottoscritto/a{" "}
-        <Text style={styles.paragraphEmphasis}>
+        <Text style={styles.emphasis}>
           {data.nome} {data.cognome}
         </Text>
-        , nato/a a{" "}
-        <Text style={styles.paragraphEmphasis}>{data.luogoNascita}</Text> il{" "}
-        <Text style={styles.paragraphEmphasis}>
+        , nato/a a <Text style={styles.emphasis}>{data.luogoNascita}</Text> il{" "}
+        <Text style={styles.emphasis}>
           {formatDateItalian(data.dataNascita)}
         </Text>
         , residente{" "}
-        <Text style={styles.paragraphEmphasis}>
+        <Text style={styles.emphasis}>
           ELET.DOM PRESSO STUDIO LEGALE GUICCIARDINI
         </Text>
-        , codice fiscale{" "}
-        <Text style={styles.paragraphEmphasis}>
-          {data.codiceFiscale.toUpperCase()}
-        </Text>
-        {vestanetLine && (
+        {data.codiceFiscale && (
           <>
-            ,{" "}
-            <Text style={styles.paragraphEmphasis}>
-              pratica VESTANET n. {data.numeroVestanet}
+            , codice fiscale{" "}
+            <Text style={styles.emphasis}>
+              {data.codiceFiscale.toUpperCase()}
             </Text>
           </>
         )}
-        .
-      </Text>
-
-      <Text style={styles.paragraph}>
-        nomino quale mio difensore e procuratore speciale in ogni fase e grado
-        del giudizio, anche nelle fasi dell’esecuzione, opposizione,
-        incidentale, cautelare ed in sede di gravame, l’Avv.{" "}
-        {AVVOCATO.nomeCompleto}, del Foro di {AVVOCATO.foro}, C.F.{" "}
-        {AVVOCATO.codiceFiscale}, con studio in {AVVOCATO.studio}, conferendogli
-        ogni più ampia facoltà di legge.
-      </Text>
-
-      <Text style={styles.paragraph}>
-        Nominandolo/a affinché mi rappresenti e difenda in ogni fase e grado del
-        giudizio, ivi compresi l’esecuzione forzata, l’azione esecutiva e
-        cautelare, e in ogni altro procedimento connesso e/o conseguente, nonché
-        in sede di conciliazione e mediazione.
+        , recapito telefonico{" "}
+        <Text style={styles.emphasis}>{data.telefono}</Text>, indirizzo e-mail{" "}
+        <Text style={styles.emphasis}>{data.email}</Text>.
       </Text>
     </View>
   );
 }
 
-/* ---------------- powers ---------------- */
-
-function Facolta() {
-  const poteri = [
-    "proporre domande, anche riconvenzionali, e relative eccezioni;",
-    "chiamare in causa terzi;",
-    "proporre e accettare transazioni e conciliazioni;",
-    "incassare somme e rilasciare quietanze;",
-    "rinunciare agli atti ed accettare la rinuncia;",
-    "farsi rappresentare e sostituire;",
-    "e compiere ogni altro atto ritenuto utile per la tutela dei miei diritti.",
-  ];
-
+function Nomino() {
   return (
     <View>
-      {poteri.map((p, i) => (
-        <View key={i} style={styles.listItem}>
-          <Text style={styles.bullet}>–</Text>
-          <Text style={styles.listText}>{p}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-/* ---------------- sections ---------------- */
-
-function ElezioneDomicilio() {
-  return (
-    <View>
-      <Text style={styles.paragraph}>
-        Eleggo domicilio presso lo studio dell’Avv. {AVVOCATO.nomeCompleto},
-        sito in {AVVOCATO.studio}.
-      </Text>
-    </View>
-  );
-}
-
-function Comunicazioni() {
-  return (
-    <View>
-      <Text style={styles.paragraph}>
-        Il sottoscritto dichiara di voler ricevere le comunicazioni a mezzo PEC:{" "}
-        {AVVOCATO.pec}.
-      </Text>
-    </View>
-  );
-}
-
-function Privacy() {
-  return (
-    <View>
-      <Text style={styles.paragraph}>
-        Dichiaro, ai sensi e per gli effetti del Regolamento UE 2016/679 (GDPR)
-        e del D.Lgs. 196/2003 e s.m.i., di essere stato informato che i miei
-        dati personali, anche sensibili, verranno trattati per le finalità
-        inerenti al presente mandato.
-      </Text>
-    </View>
-  );
-}
-
-function Revoca() {
-  return (
-    <View>
-      <Text style={styles.paragraph}>
-        Dichiaro di revocare ogni precedente mandato conferito.
-      </Text>
-    </View>
-  );
-}
-
-/* ---------------- signatures ---------------- */
-
-function VeraFirma() {
-  return (
-    <View>
-      <Text style={styles.veraFirma}>Vera ed autentica firma</Text>
+      <Text style={styles.nominoTitle}>NOMINO</Text>
+      <Text style={styles.block}>{TESTO_NOMINO_FISSO}</Text>
     </View>
   );
 }
@@ -345,18 +240,16 @@ function Firme({ data }: { data: ProcuraFormData }) {
 
       <View style={styles.signatureBlock}>
         <View style={styles.signatureLine} />
-        <Text style={styles.signatureLabel}>Avv. {AVVOCATO.nomeCompleto}</Text>
+        <Text style={styles.signatureLabel}> {AVVOCATO.nomeCompleto}</Text>
       </View>
     </View>
   );
 }
 
-/* ---------------- footer ---------------- */
-
 function Footer() {
   return (
     <View style={styles.footer}>
-      <Text>Via Mario Pieri n. 2 – 20127 Milano – Tel. 02/49424384</Text>
+      <Text>Via Mario Pieri n. 2 – 20127 Milano – Tel. +39/3208799771</Text>
       <Text>C.F. {AVVOCATO.codiceFiscale} – P. IVA 10860930154</Text>
       <Text>francesca.guicciardini@gmail.com – {AVVOCATO.pec}</Text>
     </View>
@@ -364,7 +257,7 @@ function Footer() {
 }
 
 /* =========================================================
-   Document
+   DOCUMENT
 ========================================================= */
 
 export function ProcuraDocument({ data }: { data: ProcuraFormData }) {
@@ -373,13 +266,8 @@ export function ProcuraDocument({ data }: { data: ProcuraFormData }) {
       <Page size="A4" style={styles.page}>
         <Intestazione />
         <DataDocumento />
-        <CorpoPrincipale data={data} />
-        <Facolta />
-        <ElezioneDomicilio />
-        <Comunicazioni />
-        <Privacy />
-        <Revoca />
-        <VeraFirma />
+        <DatiCliente data={data} />
+        <Nomino />
         <Firme data={data} />
         <Footer />
       </Page>
@@ -388,7 +276,7 @@ export function ProcuraDocument({ data }: { data: ProcuraFormData }) {
 }
 
 /* =========================================================
-   PDF generation helpers
+   PDF HELPERS
 ========================================================= */
 
 export async function generateProcuraPdf(data: ProcuraFormData): Promise<Blob> {
