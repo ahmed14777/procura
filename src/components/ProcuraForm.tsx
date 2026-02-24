@@ -92,9 +92,9 @@ export function ProcuraForm({
       case "codiceFiscale":
         if (!value.trim()) return "Il codice fiscale è obbligatorio";
 
-        if (!/^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/i.test(value)) {
-          return "Il codice fiscale non è valido";
-        }
+        // if (!/^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/i.test(value)) {
+        //   return "Il codice fiscale non è valido";
+        // }
         break;
       case "sedeSelezionata":
         if (!value) return "La sede è obbligatoria";
