@@ -9,7 +9,11 @@ import {
 } from "@react-pdf/renderer";
 import type { ProcuraFormData } from "@/lib/schema";
 import { AVVOCATO } from "@/data/avvocato";
-
+function capitalizeFirst(value: string): string {
+  if (!value) return "";
+  const v = value.trim();
+  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+}
 /* =========================================================
   STYLES – closer to real scanned legal paper
 ========================================================= */
@@ -197,7 +201,10 @@ function DatiCliente({ data }: { data: ProcuraFormData }) {
       <Text style={styles.paragraph}>
         Io sottoscritto/a{" "}
         <Text style={styles.emphasis}>
-          {data.nome} {data.cognome}
+          {capitalizeFirst(data.nome)}
+          {capitalizeFirst(data.cognome)
+            ? ` ${capitalizeFirst(data.cognome)}`
+            : ""}
         </Text>
         , nato/a a <Text style={styles.emphasis}>{data.luogoNascita}</Text> il{" "}
         <Text style={styles.emphasis}>

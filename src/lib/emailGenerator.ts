@@ -12,7 +12,11 @@ import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
  * - Clear
  * - Focused on getting a fast reply
  */
-
+function capitalizeFirst(value: string): string {
+  if (!value) return "";
+  const v = value.trim();
+  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+}
 export interface GeneratedEmail {
   subject: string;
   body: string;
@@ -47,7 +51,7 @@ const RIFERIMENTI_NORMATIVI: Record<TipoRichiesta, string> = {
  */
 export function generateSubject(data: ProcuraFormData): string {
   const tipoLabel = TIPO_RICHIESTA_LABELS[data.tipoRichiesta];
-  const nomeCompleto = `${data.nome} ${data.cognome}`;
+  const nomeCompleto = `${capitalizeFirst(data.nome)} ${capitalizeFirst(data.cognome)}`;
 
   let subject = `${tipoLabel} – ${nomeCompleto}`;
 
@@ -71,7 +75,7 @@ export function generateBody(
   data: ProcuraFormData,
   commissione: string,
 ): string {
-  const nomeCompleto = `${data.nome} ${data.cognome}`;
+  const nomeCompleto = `${capitalizeFirst(data.nome)} ${capitalizeFirst(data.cognome)}`;
   const riferimento = RIFERIMENTI_NORMATIVI[data.tipoRichiesta];
 
   const lines: string[] = [
@@ -89,7 +93,7 @@ export function generateBody(
     );
   }
 
-  lines.push("", `ai sensi di ${riferimento},`, "");
+  lines.push("", ` ${riferimento},`, "");
 
   if (data.tipoRichiesta === "asilo") {
     lines.push(
