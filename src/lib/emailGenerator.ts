@@ -77,8 +77,9 @@ export function generateBody(
   const lines: string[] = [
     `Alla Commissione Territoriale di ${commissione}`,
     "",
-    `La sottoscritta Avv. Francesca Guicciardini (Foro di Milano),`,
-    `in qualità di difensore del Sig./della Sig.ra ${nomeCompleto}, nato/a a ${data.luogoNascita} il ${formatDate(data.dataNascita)}${data.codiceFiscale ? `, C.F. ${data.codiceFiscale.toUpperCase()}` : ""},`,
+    `La sottoscritta Avv. Francesca Guicciardini, del Foro di Milano,`,
+    `in qualità di difensore del Sig./della Sig.ra ${nomeCompleto},`,
+    `nato/a a ${data.luogoNascita} il ${formatDate(data.dataNascita)}${data.codiceFiscale ? `, C.F. ${data.codiceFiscale.toUpperCase()}` : ""},`,
     `giusta procura alle liti regolarmente conferita ed allegata alla presente,`,
   ];
 
@@ -94,28 +95,24 @@ export function generateBody(
     lines.push(
       "CHIEDE",
       "",
-      "di conoscere lo stato attuale del procedimento di protezione internazionale e, in particolare:",
-      "- se risulti fissata la convocazione innanzi alla Commissione Territoriale;",
-      "- ovvero, qualora l’audizione sia stata espletata, se sia stato adottato il provvedimento conclusivo.",
-      "",
-      "Si chiede che ogni comunicazione inerente al procedimento venga trasmessa allo scrivente difensore",
-      "a mezzo PEC all’indirizzo francesca.guicciardini@pec.it",
-      "nonché mediante raccomandata A/R presso lo studio in Milano, Via Mario Pieri n. 2.",
+      "di voler fornire formale riscontro in ordine allo stato del procedimento di protezione internazionale,",
+      "con specifico riferimento all’eventuale fissazione della convocazione",
+      "ovvero all’adozione del relativo provvedimento conclusivo.",
     );
   } else {
     lines.push(
       "CHIEDE",
       "",
-      "di poter prendere visione ed estrarre copia integrale del fascicolo amministrativo relativo alla posizione in oggetto,",
-      "ai sensi della normativa vigente in materia di accesso agli atti.",
-      "",
-      "Si richiede che la documentazione e ogni ulteriore comunicazione siano trasmesse allo scrivente difensore",
-      "a mezzo PEC all’indirizzo francesca.guicciardini@pec.it",
-      "nonché mediante raccomandata A/R presso lo studio in Milano, Via Mario Pieri n. 2.",
+      "di voler consentire l’accesso e il rilascio di copia integrale del fascicolo amministrativo",
+      "relativo al procedimento in oggetto, ai sensi della normativa vigente.",
     );
   }
 
   lines.push(
+    "",
+    "Si richiede che ogni comunicazione inerente al procedimento sia trasmessa",
+    "a mezzo PEC all’indirizzo francesca.guicciardini@pec.it",
+    "nonché mediante raccomandata A/R presso lo studio in Milano, Via Mario Pieri n. 2.",
     "",
     "Si allegano:",
     "- Procura alle liti;",
@@ -124,8 +121,6 @@ export function generateBody(
     "Distinti saluti.",
     "",
     "Avv. Francesca Guicciardini",
-    "via Mario Pieri n. 2, Milano",
-    "pec: francesca.guicciardini@pec.it",
     "Foro di Milano",
   );
 

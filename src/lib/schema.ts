@@ -20,7 +20,15 @@ export const procuraFormSchema = z.object({
     .regex(
       /^[a-zA-ZàèéìòùÀÈÉÌÒÙ\s'-]+$/,
       "Il nome contiene caratteri non validi",
-    ),
+    )
+    .transform((val) => {
+      return val
+        .trim()
+        .toLowerCase()
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }),
 
   cognome: z
     .string()
@@ -30,7 +38,15 @@ export const procuraFormSchema = z.object({
     .regex(
       /^[a-zA-ZàèéìòùÀÈÉÌÒÙ\s'-]+$/,
       "Il cognome contiene caratteri non validi",
-    ),
+    )
+    .transform((val) => {
+      return val
+        .trim()
+        .toLowerCase()
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    }),
 
   dataNascita: z
     .string()

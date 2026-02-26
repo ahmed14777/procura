@@ -252,7 +252,7 @@ function Firme({ data }: { data: ProcuraFormData }) {
         {/* The Image component placed ABOVE the line */}
 
         <View style={styles.signatureLine} />
-        <Text style={styles.signatureLabel}>Avv. {AVVOCATO.nomeCompleto}</Text>
+        <Text style={styles.signatureLabel}> {AVVOCATO.nomeCompleto}</Text>
       </View>
     </View>
   );
