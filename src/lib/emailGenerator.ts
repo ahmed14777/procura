@@ -124,6 +124,8 @@ export function generateBody(
     "Distinti saluti.",
     "",
     "Avv. Francesca Guicciardini",
+    "via Mario Pieri n. 2, Milano",
+    "pec: francesca.guicciardini@pec.it",
     "Foro di Milano",
   );
 
