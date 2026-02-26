@@ -103,6 +103,8 @@ export function ProcuraForm({
         if (value && !/^[A-Z]{2}[0-9]+$/.test(value))
           return "Deve iniziare con due lettere seguite solo da numeri (es. AB12345)";
         break;
+      case "numeroVestanet":
+        if (!value.trim()) return "Il numero Vestanet è obbligatorio";
       case "telefono":
         if (!value.trim()) return "Il telefono è obbligatorio";
         if (!/^(\+?[0-9]{8,15})$/.test(value))
@@ -367,7 +369,7 @@ export function ProcuraForm({
         {/* Numero Vestanet */}
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1.5">
-            Numero VESTANET <span className="text-slate-500">(opzionale)</span>
+            Numero VESTANET <span className="text-red-400">*</span>
           </label>
           <input
             type="text"

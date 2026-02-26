@@ -23,8 +23,8 @@ export interface GeneratedEmail {
  */
 const TIPO_RICHIESTA_LABELS: Record<TipoRichiesta, string> = {
   asilo:
-    "aggiornamento sullo stato del procedimento di protezione internazionale e Richiesta accesso agli atti ",
-  accesso: "Richiesta accesso agli atti",
+    "Istanza di accesso agli atti e richiesta di aggiornamento sullo stato del procedimento ",
+  accesso: "Istanza di accesso agli atti",
 };
 
 /**
@@ -74,62 +74,57 @@ export function generateBody(
   const nomeCompleto = `${data.nome} ${data.cognome}`;
   const riferimento = RIFERIMENTI_NORMATIVI[data.tipoRichiesta];
 
-  // Build a professional email body
   const lines: string[] = [
-    `Alla cortese attenzione della Commissione Territoriale di ${commissione}`,
+    `Alla Commissione Territoriale di ${commissione}`,
     "",
-    `Il sottoscritto ${nomeCompleto}, nato a ${data.luogoNascita} il ${formatDate(data.dataNascita)}, C.F. ${data.codiceFiscale.toUpperCase()}, rappresentato e difeso dall'Avv. Francesca Guicciardini del Foro di Milano, come da procura alle liti allegata,`,
+    `La sottoscritta Avv. Francesca Guicciardini (Foro di Milano),`,
+    `in qualità di difensore del Sig./della Sig.ra ${nomeCompleto}, nato/a a ${data.luogoNascita} il ${formatDate(data.dataNascita)}${data.codiceFiscale ? `, C.F. ${data.codiceFiscale.toUpperCase()}` : ""},`,
+    `giusta procura alle liti regolarmente conferita ed allegata alla presente,`,
   ];
 
-  // Add Vestanet reference if available
-  if (data.numeroVestanet && data.numeroVestanet.trim() !== "") {
+  if (data.numeroVestanet?.trim()) {
     lines.push(
-      `con riferimento alla pratica VESTANET n. ${data.numeroVestanet},`,
+      `con riferimento alla posizione VESTANET n. ${data.numeroVestanet},`,
     );
   }
 
-  // Add the appropriate request text based on type
+  lines.push("", `ai sensi di ${riferimento},`, "");
+
   if (data.tipoRichiesta === "asilo") {
     lines.push(
+      "CHIEDE",
       "",
-      `${riferimento},`,
+      "di conoscere lo stato attuale del procedimento di protezione internazionale e, in particolare:",
+      "- se risulti fissata la convocazione innanzi alla Commissione Territoriale;",
+      "- ovvero, qualora l’audizione sia stata espletata, se sia stato adottato il provvedimento conclusivo.",
       "",
-      "chiede cortesemente di conoscere, con riferimento alla fase attuale della procedura,",
-      "se il richiedente risulta già convocato innanzi alla Commissione Territoriale",
-      "ovvero, qualora l’audizione sia già stata svolta, se risulta adottato il provvedimento conclusivo.",
-      "",
-      "Si chiede, inoltre, che ogni eventuale comunicazione relativa alla fissazione della convocazione",
-      "e/o alla trasmissione di documentazione e provvedimenti",
-      "venga inviata allo scrivente difensore sia a mezzo PEC,",
-      "sia tramite raccomandata A/R presso lo studio legale indicato in procura.",
+      "Si chiede che ogni comunicazione inerente al procedimento venga trasmessa allo scrivente difensore",
+      "a mezzo PEC all’indirizzo francesca.guicciardini@pec.it",
+      "nonché mediante raccomandata A/R presso lo studio in Milano, Via Mario Pieri n. 2.",
     );
   } else {
     lines.push(
+      "CHIEDE",
       "",
-      `${riferimento},`,
+      "di poter prendere visione ed estrarre copia integrale del fascicolo amministrativo relativo alla posizione in oggetto,",
+      "ai sensi della normativa vigente in materia di accesso agli atti.",
       "",
-      "chiede di poter prendere visione ed estrarre copia della documentazione relativa al proprio procedimento amministrativo.",
-      "",
-      "Si chiede, inoltre, che la trasmissione della documentazione e ogni eventuale comunicazione",
-      "avvengano a mezzo PEC e, ove previsto, anche tramite raccomandata A/R",
-      "presso lo studio legale indicato nella procura alle liti allegata.",
-      "",
-      "Si prega di voler comunicare le modalità e gli eventuali termini per l’accesso richiesto.",
+      "Si richiede che la documentazione e ogni ulteriore comunicazione siano trasmesse allo scrivente difensore",
+      "a mezzo PEC all’indirizzo francesca.guicciardini@pec.it",
+      "nonché mediante raccomandata A/R presso lo studio in Milano, Via Mario Pieri n. 2.",
     );
   }
 
-  // Closing
   lines.push(
     "",
-    "Si allegano alla presente, quali documenti essenziali ai fini dell’istruttoria:",
-    "- Procura alle liti",
-    "- Documento di identità del/la richiedente",
+    "Si allegano:",
+    "- Procura alle liti;",
+    "- Documento di identità del/la richiedente.",
     "",
-    "Con osservanza.",
+    "Distinti saluti.",
     "",
     "Avv. Francesca Guicciardini",
     "Foro di Milano",
-    "PEC: francesca.guicciardini@pec.it",
   );
 
   return lines.join("\n");

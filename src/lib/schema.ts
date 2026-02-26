@@ -68,7 +68,6 @@ export const procuraFormSchema = z.object({
     .string()
     .max(20, "Il numero Vestanet non può superare 20 caratteri")
     .regex(/^[0-9]*$/, "Il numero Vestanet deve contenere solo cifre")
-    .optional()
     .or(z.literal("")),
 
   // Selected location (must be from official list)
