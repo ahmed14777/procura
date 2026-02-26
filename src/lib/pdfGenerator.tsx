@@ -1,5 +1,4 @@
 "use client";
-
 import {
   Document,
   Page,
@@ -12,22 +11,22 @@ import type { ProcuraFormData } from "@/lib/schema";
 import { AVVOCATO } from "@/data/avvocato";
 
 /* =========================================================
-   STYLES – closer to real scanned legal paper
+  STYLES – closer to real scanned legal paper
 ========================================================= */
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 22,
-    paddingBottom: 22,
+    paddingTop: 60,
+    paddingBottom: 50,
     paddingHorizontal: 48,
     fontSize: 10.5,
     fontFamily: "Times-Roman",
-    lineHeight: 1.15,
+    lineHeight: 1.35,
   },
 
   header: {
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 18,
   },
 
   studio: {
@@ -64,8 +63,8 @@ const styles = StyleSheet.create({
   nominoTitle: {
     textAlign: "center",
     fontWeight: "bold",
-    marginTop: 6,
-    marginBottom: 6,
+    marginTop: 18,
+    marginBottom: 14,
   },
 
   block: {
@@ -74,9 +73,15 @@ const styles = StyleSheet.create({
   },
 
   signatureArea: {
-    marginTop: 18,
+    marginTop: 60,
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  signatureImage: {
+    width: 120,
+    height: 45,
+    objectFit: "contain",
+    marginBottom: 4,
   },
 
   signatureBlock: {
@@ -228,8 +233,12 @@ function Nomino() {
 }
 
 function Firme({ data }: { data: ProcuraFormData }) {
+  // Use the .src property if imported via Next.js image loader,
+  // or a string path if the file is in /public
+
   return (
     <View style={styles.signatureArea}>
+      {/* Client Signature (Manual) */}
       <View style={styles.signatureBlock}>
         <View style={styles.signatureLine} />
         <Text style={styles.signatureLabel}>Il/La Mandante</Text>
@@ -238,9 +247,12 @@ function Firme({ data }: { data: ProcuraFormData }) {
         </Text>
       </View>
 
+      {/* Lawyer Signature (Image) */}
       <View style={styles.signatureBlock}>
+        {/* The Image component placed ABOVE the line */}
+
         <View style={styles.signatureLine} />
-        <Text style={styles.signatureLabel}> {AVVOCATO.nomeCompleto}</Text>
+        <Text style={styles.signatureLabel}>Avv. {AVVOCATO.nomeCompleto}</Text>
       </View>
     </View>
   );
