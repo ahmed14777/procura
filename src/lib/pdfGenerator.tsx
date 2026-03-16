@@ -5,10 +5,25 @@ import {
   Text,
   View,
   StyleSheet,
+  Image,
   pdf,
 } from "@react-pdf/renderer";
 import type { ProcuraFormData } from "@/lib/schema";
 import { AVVOCATO } from "@/data/avvocato";
+
+const AVVOCATO_SIGNATURE_FILENAME = "francesca-firma.png";
+
+function getAvvocatoSignatureSrc(): string {
+  if (typeof window === "undefined") {
+    return `/${AVVOCATO_SIGNATURE_FILENAME}`;
+  }
+
+  return new URL(
+    AVVOCATO_SIGNATURE_FILENAME,
+    `${window.location.origin}/`,
+  ).toString();
+}
+
 function capitalizeFirst(value: string): string {
   if (!value) return "";
   const v = value.trim();
@@ -63,6 +78,11 @@ const styles = StyleSheet.create({
   emphasis: {
     fontWeight: "bold",
   },
+  emphasisBold: {
+    fontWeight: "extrabold",
+    fontStyle: "italic",
+    fontSize: 12.8,
+  },
 
   nominoTitle: {
     textAlign: "center",
@@ -82,21 +102,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   signatureImage: {
-    width: 120,
-    height: 45,
-    objectFit: "contain",
-    marginBottom: 4,
+    width: 200,
+    height: 95,
+    marginBottom: 2,
+    alignSelf: "center",
   },
 
   signatureBlock: {
     width: "40%",
     textAlign: "center",
   },
+  signaturePreview: {
+    height: 60,
+    justifyContent: "flex-end",
+  },
 
   signatureLine: {
     borderBottomWidth: 1,
     borderBottomColor: "#000",
-    marginTop: 22,
     marginBottom: 5,
   },
 
@@ -216,6 +239,12 @@ function DatiCliente({ data }: { data: ProcuraFormData }) {
         </Text>
         {data.codiceFiscale && (
           <>
+            , VESTANET{" "}
+            <Text style={styles.emphasisBold}>{data.numeroVestanet}</Text>
+          </>
+        )}
+        {data.codiceFiscale && (
+          <>
             , codice fiscale{" "}
             <Text style={styles.emphasis}>
               {data.codiceFiscale.toUpperCase()}
@@ -240,13 +269,11 @@ function Nomino() {
 }
 
 function Firme({ data }: { data: ProcuraFormData }) {
-  // Use the .src property if imported via Next.js image loader,
-  // or a string path if the file is in /public
-
   return (
     <View style={styles.signatureArea}>
       {/* Client Signature (Manual) */}
       <View style={styles.signatureBlock}>
+        <View style={styles.signaturePreview} />
         <View style={styles.signatureLine} />
         <Text style={styles.signatureLabel}>Il/La Mandante</Text>
         <Text style={styles.signatureLabel}>
@@ -256,8 +283,12 @@ function Firme({ data }: { data: ProcuraFormData }) {
 
       {/* Lawyer Signature (Image) */}
       <View style={styles.signatureBlock}>
-        {/* The Image component placed ABOVE the line */}
-
+        <View style={styles.signaturePreview}>
+          <Image
+            src={getAvvocatoSignatureSrc()}
+            style={styles.signatureImage}
+          />
+        </View>
         <View style={styles.signatureLine} />
         <Text style={styles.signatureLabel}> {AVVOCATO.nomeCompleto}</Text>
       </View>
