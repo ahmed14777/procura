@@ -24,11 +24,6 @@ function getAvvocatoSignatureSrc(): string {
   ).toString();
 }
 
-function capitalizeFirst(value: string): string {
-  if (!value) return "";
-  const v = value.trim();
-  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
-}
 /* =========================================================
   STYLES – closer to real scanned legal paper
 ========================================================= */
@@ -224,9 +219,9 @@ function DatiCliente({ data }: { data: ProcuraFormData }) {
       <Text style={styles.paragraph}>
         Io sottoscritto/a{" "}
         <Text style={styles.emphasis}>
-          {capitalizeFirst(data.nome)}
-          {capitalizeFirst(data.cognome)
-            ? ` ${capitalizeFirst(data.cognome)}`
+          {data.nome.toLocaleUpperCase()}
+          {data.cognome.toLocaleUpperCase()
+            ? " " + data.cognome.toLocaleUpperCase()
             : ""}
         </Text>
         , nato/a a <Text style={styles.emphasis}>{data.luogoNascita}</Text> il{" "}
