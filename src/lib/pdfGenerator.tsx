@@ -90,6 +90,10 @@ const styles = StyleSheet.create({
     textAlign: "justify",
     marginBottom: 0,
   },
+  blockSpaced: {
+    textAlign: "justify",
+    marginBottom: 14,
+  },
 
   signatureArea: {
     marginTop: 60,
@@ -130,6 +134,95 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 8.8,
     lineHeight: 1.2,
+  },
+  autodichiarazionePage: {
+    paddingTop: 54,
+    paddingBottom: 56,
+    paddingHorizontal: 58,
+    fontSize: 11,
+    fontFamily: "Times-Roman",
+    lineHeight: 1.5,
+  },
+  autodichiarazioneHeader: {
+    textAlign: "center",
+    marginBottom: 22,
+  },
+  autodichiarazioneTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  autodichiarazioneDate: {
+    textAlign: "right",
+    marginBottom: 18,
+    fontSize: 10,
+  },
+  autodichiarazioneCard: {
+    borderWidth: 1,
+    borderColor: "#111",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 18,
+  },
+  autodichiarazioneField: {
+    fontSize: 10.8,
+    marginBottom: 6,
+  },
+  autodichiarazioneBody: {
+    textAlign: "justify",
+    fontSize: 11.2,
+    lineHeight: 1.62,
+    marginBottom: 12,
+  },
+  autodichiarazioneChecklist: {
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  autodichiarazioneOptionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  autodichiarazioneCheckbox: {
+    width: 14,
+    height: 14,
+    borderWidth: 1,
+    borderColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  autodichiarazioneOptionText: {
+    flex: 1,
+    fontSize: 11.1,
+    lineHeight: 1.45,
+    marginLeft: 10,
+  },
+  autodichiarazioneClosing: {
+    marginTop: 18,
+    fontSize: 11.2,
+  },
+  autodichiarazioneSignatureArea: {
+    marginTop: 80,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  autodichiarazioneSignatureBlock: {
+    width: "46%",
+  },
+  autodichiarazioneLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#000",
+    marginBottom: 6,
+    height: 30,
+  },
+  autodichiarazioneLabel: {
+    fontSize: 10,
+    textAlign: "center",
   },
 });
 
@@ -190,6 +283,21 @@ Dichiaro, ai sensi e per gli effetti di cui al D. Lgs. n. 196/2003 e s.m.i., di 
 Eleggo domicilio presso lo studio dell’Avv. Francesca Guicciardini, sito in Milano, Via Mario Pieri n. 2.
 
 Dichiaro di revocare ogni precedente mandato conferito.`;
+
+const TESTO_AUTODICHIARAZIONE_ITALIANO = `Io sottoscritto dichiaro di aver compreso in modo chiaro che il ruolo dell'ufficio Easy2Do e limitato esclusivamente al conferimento di incarico legale tramite l'avvocato incaricato, al solo fine di svolgere una delle seguenti attivita:`;
+
+const AUTODICHIARAZIONE_OPTION_LABELS = {
+  prima_udienza:
+    "al fine di acquisire ogni utile informazione in merito allo stato della mia domanda di protezione internazionale e di accertare la data della prima udienza dinanzi all’Autorità competente, senza alcun potere di intervento sui tempi o sulle decisioni delle autorità competentiseguire la prima udienza relativa alla mia domanda di asilo",
+  riscontro_tribunale:
+    "richiedere ed acquisire copia del provvedimento conclusivo adottato dalla Commissione competente in relazione alla mia domanda di protezione internazionale, senza alcun potere di intervento sui tempi o sull’esito del procedimento",
+} as const;
+
+const TESTO_AUTODICHIARAZIONE_ITALIANO_FINALE = `Resta espressamente inteso che l’ufficio non ha alcun potere né intervento in merito ai tempi, alle udienze o all’esito del procedimento.
+L’attività dell’ufficio ha natura meramente amministrativa ed è svolta nei limiti della legge italiana.
+
+Dichiaro che il contenuto mi è stato spiegato anche in lingua araba e di averlo compreso.
+Dichiaro di aver letto e accettato quanto sopra.`;
 
 /* =========================================================
    COMPONENTS
@@ -301,6 +409,78 @@ function Footer() {
   );
 }
 
+function AutodichiarazioneIntestazione() {
+  return (
+    <View style={styles.autodichiarazioneHeader}>
+      <Text style={styles.autodichiarazioneTitle}>AUTODICHIARAZIONE</Text>
+    </View>
+  );
+}
+
+function AutodichiarazioneDati({ data }: { data: ProcuraFormData }) {
+  return (
+    <View style={styles.autodichiarazioneCard}>
+      <Text style={styles.autodichiarazioneField}>
+        Nome e cognome:{" "}
+        <Text style={styles.emphasis}>
+          {data.nome} {data.cognome}
+        </Text>
+      </Text>
+      <Text style={styles.autodichiarazioneField}>
+        Data di nascita:{" "}
+        <Text style={styles.emphasis}>
+          {formatDateItalian(data.dataNascita)}
+        </Text>
+      </Text>
+      <Text style={styles.autodichiarazioneField}>
+        Codice fiscale:{" "}
+        <Text style={styles.emphasis}>{data.codiceFiscale.toUpperCase()}</Text>
+      </Text>
+    </View>
+  );
+}
+
+function AutodichiarazioneTesto() {
+  return (
+    <View>
+      <Text style={styles.autodichiarazioneBody}>
+        {TESTO_AUTODICHIARAZIONE_ITALIANO}
+      </Text>
+      <View style={styles.autodichiarazioneChecklist}>
+        <View style={styles.autodichiarazioneOptionRow}>
+          <Text style={styles.autodichiarazioneCheckbox} />
+          <Text style={styles.autodichiarazioneOptionText}>
+            {AUTODICHIARAZIONE_OPTION_LABELS.prima_udienza}
+          </Text>
+        </View>
+        <View style={styles.autodichiarazioneOptionRow}>
+          <Text style={styles.autodichiarazioneCheckbox} />
+          <Text style={styles.autodichiarazioneOptionText}>
+            {AUTODICHIARAZIONE_OPTION_LABELS.riscontro_tribunale}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.autodichiarazioneBody}>
+        {TESTO_AUTODICHIARAZIONE_ITALIANO_FINALE}
+      </Text>
+      <Text style={styles.autodichiarazioneClosing}>
+        Per conferma e presa visione:
+      </Text>
+    </View>
+  );
+}
+
+function AutodichiarazioneFirma() {
+  return (
+    <View style={styles.autodichiarazioneSignatureArea}>
+      <View style={styles.autodichiarazioneSignatureBlock}>
+        <View style={styles.autodichiarazioneLine} />
+        <Text style={styles.autodichiarazioneLabel}>Firma</Text>
+      </View>
+    </View>
+  );
+}
+
 /* =========================================================
    DOCUMENT
 ========================================================= */
@@ -320,12 +500,35 @@ export function ProcuraDocument({ data }: { data: ProcuraFormData }) {
   );
 }
 
+export function AutodichiarazioneDocument({ data }: { data: ProcuraFormData }) {
+  return (
+    <Document>
+      <Page size="A4" style={styles.autodichiarazionePage}>
+        <AutodichiarazioneIntestazione />
+        <View style={styles.autodichiarazioneDate}>
+          <Text>Milano, {getCurrentDateItalian()}</Text>
+        </View>
+        <AutodichiarazioneDati data={data} />
+        <AutodichiarazioneTesto />
+        <AutodichiarazioneFirma />
+      </Page>
+    </Document>
+  );
+}
+
 /* =========================================================
    PDF HELPERS
 ========================================================= */
 
 export async function generateProcuraPdf(data: ProcuraFormData): Promise<Blob> {
   const document = <ProcuraDocument data={data} />;
+  return await pdf(document).toBlob();
+}
+
+export async function generateAutodichiarazionePdf(
+  data: ProcuraFormData,
+): Promise<Blob> {
+  const document = <AutodichiarazioneDocument data={data} />;
   return await pdf(document).toBlob();
 }
 
@@ -336,6 +539,31 @@ export async function downloadProcuraPdf(
   const blob = await generateProcuraPdf(data);
 
   const defaultFilename = `Procura_${data.cognome}_${data.nome}_${
+    new Date().toISOString().split("T")[0]
+  }.pdf`;
+
+  const finalFilename = filename || defaultFilename;
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = finalFilename;
+
+  document.body.appendChild(link);
+  link.click();
+
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadAutodichiarazionePdf(
+  data: ProcuraFormData,
+  filename?: string,
+): Promise<void> {
+  const blob = await generateAutodichiarazionePdf(data);
+
+  const defaultFilename = `Autodichiarazione_${data.cognome}_${data.nome}_${
     new Date().toISOString().split("T")[0]
   }.pdf`;
 

@@ -7,4 +7,11 @@ export type { PecResolution, PecResolutionResult, PecResolutionError } from './p
 export { generateSubject, generateBody, generateEmail } from './emailGenerator';
 export type { GeneratedEmail } from './emailGenerator';
 
-export { generateProcuraPdf, downloadProcuraPdf, ProcuraDocument } from './pdfGenerator';
+export {
+  generateProcuraPdf,
+  generateAutodichiarazionePdf,
+  downloadProcuraPdf,
+  downloadAutodichiarazionePdf,
+  ProcuraDocument,
+  AutodichiarazioneDocument,
+} from './pdfGenerator';

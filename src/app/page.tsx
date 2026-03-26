@@ -8,7 +8,10 @@ import { ProcuraForm } from "@/components/ProcuraForm";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { resolvePec, type PecResolutionResult } from "@/lib/pecResolver";
 import { generateEmail, type GeneratedEmail } from "@/lib/emailGenerator";
-import { downloadProcuraPdf } from "@/lib/pdfGenerator";
+import {
+  downloadAutodichiarazionePdf,
+  downloadProcuraPdf,
+} from "@/lib/pdfGenerator";
 import type { ProcuraFormData } from "@/lib/schema";
 
 /**
@@ -47,6 +50,21 @@ export default function Home() {
     } catch (err) {
       console.error("PDF generation error:", err);
       setError("Errore durante la generazione del PDF. Riprova.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleAutodichiarazionePdf = useCallback(async (data: ProcuraFormData) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await downloadAutodichiarazionePdf(data);
+      setCurrentFormData(data);
+    } catch (err) {
+      console.error("Autodichiarazione PDF generation error:", err);
+      setError("Errore durante la generazione dell'autodichiarazione PDF. Riprova.");
     } finally {
       setIsLoading(false);
     }
@@ -143,6 +161,7 @@ export default function Home() {
           <div>
             <ProcuraForm
               onSubmitPdfOnly={handlePdfOnly}
+              onSubmitAutodichiarazione={handleAutodichiarazionePdf}
               onSubmitAll={handleGenerateAll}
               onSimulate={handleSimulate}
               isLoading={isLoading}

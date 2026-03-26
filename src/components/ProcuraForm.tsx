@@ -10,6 +10,7 @@ import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
 
 interface ProcuraFormProps {
   onSubmitPdfOnly: (data: ProcuraFormData) => void;
+  onSubmitAutodichiarazione: (data: ProcuraFormData) => void;
   onSubmitAll: (data: ProcuraFormData) => void;
   onSimulate: (sedeId: string) => void;
   isLoading: boolean;
@@ -29,6 +30,7 @@ interface FormErrors {
  */
 export function ProcuraForm({
   onSubmitPdfOnly,
+  onSubmitAutodichiarazione,
   onSubmitAll,
   onSimulate,
   isLoading,
@@ -49,6 +51,17 @@ export function ProcuraForm({
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
+
+  const buildSubmitData = (): ProcuraFormData => ({
+    ...formData,
+    nome: formData.nome.trim(),
+    cognome: formData.cognome.trim(),
+    luogoNascita: formData.luogoNascita.trim(),
+    codiceFiscale: formData.codiceFiscale.trim().toUpperCase(),
+    telefono: formData.telefono.trim().replace(/\s+/g, ""),
+    email: formData.email.trim(),
+    numeroVestanet: formData.numeroVestanet.trim().toUpperCase(),
+  });
 
   // Get sorted locations grouped by region
   const sediPerRegione = useMemo(() => {
@@ -100,14 +113,13 @@ export function ProcuraForm({
         if (!value) return "La sede è obbligatoria";
         break;
       case "numeroVestanet":
-        if (value && !/^[A-Z]{2}[0-9]+$/.test(value))
+        if (!value.trim()) return "Il numero Vestanet è obbligatorio";
+        if (!/^[A-Z]{2}[0-9]+$/.test(value.trim().toUpperCase()))
           return "Deve iniziare con due lettere seguite solo da numeri (es. AB12345)";
         break;
-      case "numeroVestanet":
-        if (!value.trim()) return "Il numero Vestanet è obbligatorio";
       case "telefono":
         if (!value.trim()) return "Il telefono è obbligatorio";
-        if (!/^(\+?[0-9]{8,15})$/.test(value))
+        if (!/^(\+?[0-9]{8,15})$/.test(value.trim().replace(/\s+/g, "")))
           return "Numero di telefono non valido";
         break;
 
@@ -143,26 +155,11 @@ export function ProcuraForm({
     setErrors((prev) => ({ ...prev, [name]: error }));
   };
 
-  // Validate all fields
-  const validateAll = (): boolean => {
+  const validateFields = (fields: Array<keyof typeof formData>): boolean => {
     const newErrors: FormErrors = {};
-    const fields = [
-      "nome",
-      "cognome",
-      "dataNascita",
-      "luogoNascita",
-      "codiceFiscale",
-      "telefono", // 👈
-      "email",
-      "sedeSelezionata",
-      "numeroVestanet",
-    ];
 
     for (const field of fields) {
-      const error = validateField(
-        field,
-        formData[field as keyof typeof formData],
-      );
+      const error = validateField(field, formData[field]);
       if (error) newErrors[field] = error;
     }
 
@@ -172,8 +169,24 @@ export function ProcuraForm({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Validate all fields
+  const validateAll = (): boolean =>
+    validateFields([
+      "nome",
+      "cognome",
+      "dataNascita",
+      "luogoNascita",
+      "codiceFiscale",
+      "telefono",
+      "email",
+      "sedeSelezionata",
+      "numeroVestanet",
+    ]);
+
   // Handle form submission
-  const handleSubmit = (mode: "pdf" | "all" | "simulate") => {
+  const handleSubmit = (
+    mode: "pdf" | "autodichiarazione" | "all" | "simulate",
+  ) => {
     // 🟢 Simula → فقط sede
     if (mode === "simulate") {
       if (!formData.sedeSelezionata) {
@@ -192,13 +205,19 @@ export function ProcuraForm({
       return;
     }
 
+    if (mode === "autodichiarazione") {
+      if (!validateFields(["nome", "cognome", "dataNascita", "codiceFiscale"])) {
+        return;
+      }
+
+      onSubmitAutodichiarazione(buildSubmitData());
+      return;
+    }
+
     // 🟡 PDF + ALL → validate completo
     if (!validateAll()) return;
 
-    const data: ProcuraFormData = {
-      ...formData,
-      codiceFiscale: formData.codiceFiscale.toUpperCase(),
-    };
+    const data = buildSubmitData();
 
     if (mode === "pdf") onSubmitPdfOnly(data);
     else onSubmitAll(data);
@@ -541,7 +560,24 @@ export function ProcuraForm({
               disabled:opacity-50 disabled:cursor-not-allowed
             `}
           >
-            Scarica solo procura PDF
+            Stampa Procura PDF
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            type="button"
+            onClick={() => handleSubmit("autodichiarazione")}
+            disabled={isLoading}
+            className={`
+              w-full py-3 px-4 rounded-lg font-medium transition-all
+              border border-sky-500/40 hover:border-sky-400
+              text-sky-300 hover:text-white
+              bg-sky-500/10 hover:bg-sky-500/20
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
+          >
+            Stampa Autodichiarazione PDF
           </motion.button>
         </div>
       </form>
