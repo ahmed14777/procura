@@ -1,0 +1,99 @@
+"use client";
+
+import { useState } from "react";
+
+export default function CapturePage({ params }: { params: { sessionId: string } }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(selected);
+    setPreviewUrl(URL.createObjectURL(selected));
+    setMessage(null);
+  };
+
+  const sendPhoto = async () => {
+    if (!file) return;
+    setIsSending(true);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch(`/api/capture-sessions/${params.sessionId}`, {
+        method: "POST",
+        body,
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Invio non riuscito.");
+      setSent(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Invio non riuscito.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-900 p-6 text-center">
+        <div className="max-w-sm rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-8">
+          <div className="mb-4 text-5xl">✓</div>
+          <h1 className="text-xl font-semibold text-white">Foto inviata</h1>
+          <p className="mt-2 text-sm text-slate-300">Puoi tornare al computer.</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 px-5 py-8 text-white">
+      <div className="mx-auto max-w-md">
+        <h1 className="text-center text-2xl font-semibold">Fotografa il documento</h1>
+        <p className="mt-2 text-center text-sm text-slate-400">
+          Inquadra tutto il documento con buona luce.
+        </p>
+
+        {previewUrl ? (
+          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-700 bg-black p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="Anteprima documento" className="max-h-[58vh] w-full object-contain" />
+          </div>
+        ) : (
+          <div className="mt-6 flex h-72 items-center justify-center rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/60 text-sm text-slate-400">
+            Nessuna foto
+          </div>
+        )}
+
+        <div className="mt-5 space-y-3">
+          <label className="flex w-full cursor-pointer items-center justify-center rounded-xl bg-sky-600 px-4 py-4 font-medium transition hover:bg-sky-500">
+            {file ? "Ripeti foto" : "Apri fotocamera"}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={selectPhoto}
+              className="sr-only"
+            />
+          </label>
+          {file && (
+            <button
+              type="button"
+              onClick={sendPhoto}
+              disabled={isSending}
+              className="w-full rounded-xl bg-emerald-600 px-4 py-4 font-medium transition hover:bg-emerald-500 disabled:opacity-60"
+            >
+              {isSending ? "Invio in corso..." : "Usa questa foto"}
+            </button>
+          )}
+        </div>
+        {message && <p className="mt-4 text-center text-sm text-red-300">{message}</p>}
+      </div>
+    </main>
+  );
+}

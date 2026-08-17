@@ -79,12 +79,16 @@ export const procuraFormSchema = z.object({
     )
     .transform((val) => val.toUpperCase()),
 
-  // Optional Vestanet number
+  // Vestanet: two letters followed by digits (for example AB12345)
   numeroVestanet: z
     .string()
+    .trim()
     .max(20, "Il numero Vestanet non può superare 20 caratteri")
-    .regex(/^[0-9]*$/, "Il numero Vestanet deve contenere solo cifre")
-    .or(z.literal("")),
+    .refine(
+      (value) => value === "" || /^[A-Z]{2}[0-9]+$/i.test(value),
+      "Il numero Vestanet deve iniziare con due lettere seguite da numeri",
+    )
+    .transform((value) => value.toUpperCase()),
 
   // Selected location (must be from official list)
   sedeSelezionata: z.string().min(1, "La sede è obbligatoria"),

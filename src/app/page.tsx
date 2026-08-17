@@ -13,6 +13,7 @@ import {
   downloadProcuraPdf,
 } from "@/lib/pdfGenerator";
 import type { ProcuraFormData } from "@/lib/schema";
+import { downloadCompletePracticePdf } from "@/lib/completePracticePdf";
 
 /**
  * Main Page Component - Procura Francesca
@@ -28,6 +29,10 @@ export default function Home() {
   const [email, setEmail] = useState<GeneratedEmail | null>(null);
   const [currentFormData, setCurrentFormData] =
     useState<ProcuraFormData | null>(null);
+  const [currentClientSignature, setCurrentClientSignature] =
+    useState<string | null>(null);
+  const [currentSourceDocument, setCurrentSourceDocument] =
+    useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +41,7 @@ export default function Home() {
    * Handle "Scarica solo procura PDF" action
    * Only generates and downloads the PDF
    */
-  const handlePdfOnly = useCallback(async (data: ProcuraFormData) => {
+  const handlePdfOnly = useCallback(async (data: ProcuraFormData, clientSignature?: string) => {
     setIsLoading(true);
     setError(null);
 
@@ -45,8 +50,10 @@ export default function Home() {
     setEmail(null);
 
     try {
-      await downloadProcuraPdf(data);
+      await downloadProcuraPdf(data, undefined, clientSignature);
       setCurrentFormData(data);
+      setCurrentClientSignature(clientSignature || null);
+      setCurrentSourceDocument(null);
     } catch (err) {
       console.error("PDF generation error:", err);
       setError("Errore durante la generazione del PDF. Riprova.");
@@ -62,6 +69,7 @@ export default function Home() {
     try {
       await downloadAutodichiarazionePdf(data);
       setCurrentFormData(data);
+      setCurrentSourceDocument(null);
     } catch (err) {
       console.error("Autodichiarazione PDF generation error:", err);
       setError("Errore durante la generazione dell'autodichiarazione PDF. Riprova.");
@@ -74,7 +82,11 @@ export default function Home() {
    * Handle "Genera tutto" action
    * Generates PDF + resolves PEC + generates email
    */
-  const handleGenerateAll = useCallback(async (data: ProcuraFormData) => {
+  const handleGenerateAll = useCallback(async (
+    data: ProcuraFormData,
+    clientSignature: string | undefined,
+    sourceDocument: File,
+  ) => {
     setIsLoading(true);
     setError(null);
 
@@ -95,10 +107,12 @@ export default function Home() {
       const generatedEmail = generateEmail(data, pecResolution.commissione);
       setEmail(generatedEmail);
 
-      // 3. Generate and download PDF
-      await downloadProcuraPdf(data);
+      // 3. Generate one PDF containing the source document and signed Procura
+      await downloadCompletePracticePdf(data, sourceDocument, clientSignature);
 
       setCurrentFormData(data);
+      setCurrentClientSignature(clientSignature || null);
+      setCurrentSourceDocument(sourceDocument);
     } catch (err) {
       console.error("Generation error:", err);
       setError("Errore durante la generazione. Riprova.");
@@ -128,6 +142,17 @@ export default function Home() {
     // نمسح أي Email سابق
     setEmail(null);
   }, []);
+
+  const handleNewPractice = useCallback(() => {
+    setPecResult(null);
+    setEmail(null);
+    setCurrentFormData(null);
+    setCurrentClientSignature(null);
+    setCurrentSourceDocument(null);
+    setError(null);
+    setIsLoading(false);
+    setIsDownloading(false);
+  }, []);
   /**
    * Handle manual PDF download from results panel
    */
@@ -136,13 +161,25 @@ export default function Home() {
 
     setIsDownloading(true);
     try {
-      await downloadProcuraPdf(currentFormData);
+      if (currentSourceDocument) {
+        await downloadCompletePracticePdf(
+          currentFormData,
+          currentSourceDocument,
+          currentClientSignature || undefined,
+        );
+      } else {
+        await downloadProcuraPdf(
+          currentFormData,
+          undefined,
+          currentClientSignature || undefined,
+        );
+      }
     } catch (err) {
       console.error("PDF download error:", err);
     } finally {
       setIsDownloading(false);
     }
-  }, [currentFormData]);
+  }, [currentFormData, currentClientSignature, currentSourceDocument]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
@@ -164,6 +201,7 @@ export default function Home() {
               onSubmitAutodichiarazione={handleAutodichiarazionePdf}
               onSubmitAll={handleGenerateAll}
               onSimulate={handleSimulate}
+              onNewPractice={handleNewPractice}
               isLoading={isLoading}
             />
 

@@ -1,24 +1,73 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   getSediOrdinatePerRegione,
   type SedeSelezionabile,
 } from "@/data/commissioni";
 import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
+import { downloadImageAsPdf } from "@/lib/imageToPdf";
+import { generateProcuraPdf } from "@/lib/pdfGenerator";
+import QRCode from "qrcode";
 
 interface ProcuraFormProps {
-  onSubmitPdfOnly: (data: ProcuraFormData) => void;
+  onSubmitPdfOnly: (data: ProcuraFormData, clientSignature?: string) => void;
   onSubmitAutodichiarazione: (data: ProcuraFormData) => void;
-  onSubmitAll: (data: ProcuraFormData) => void;
+  onSubmitAll: (
+    data: ProcuraFormData,
+    clientSignature: string | undefined,
+    sourceDocument: File,
+  ) => void;
   onSimulate: (sedeId: string) => void;
+  onNewPractice: () => void;
   isLoading: boolean;
 }
 
 interface FormErrors {
   [key: string]: string | undefined;
 }
+
+type ExtractableField =
+  | "nome"
+  | "cognome"
+  | "dataNascita"
+  | "luogoNascita"
+  | "codiceFiscale"
+  | "telefono"
+  | "email"
+  | "numeroVestanet";
+
+type ExtractedData = Partial<Record<ExtractableField, string>>;
+
+interface DocumentPreview {
+  url: string;
+  name: string;
+  type: string;
+}
+
+interface CaptureSessionView {
+  id: string;
+  qrCode: string;
+  captureUrl: string;
+}
+
+interface SignatureSessionView extends CaptureSessionView {
+  retrievalToken: string;
+}
+
+const INITIAL_FORM_DATA = {
+  nome: "",
+  cognome: "",
+  dataNascita: "",
+  luogoNascita: "",
+  codiceFiscale: "",
+  telefono: "",
+  email: "",
+  numeroVestanet: "",
+  sedeSelezionata: "",
+  tipoRichiesta: "asilo" as TipoRichiesta,
+};
 
 /**
  * ProcuraForm Component
@@ -33,24 +82,356 @@ export function ProcuraForm({
   onSubmitAutodichiarazione,
   onSubmitAll,
   onSimulate,
+  onNewPractice,
   isLoading,
 }: ProcuraFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [documentPreview, setDocumentPreview] =
+    useState<DocumentPreview | null>(null);
+  const [sourceDocument, setSourceDocument] = useState<File | null>(null);
+  const [isConvertingImage, setIsConvertingImage] = useState(false);
+  const [captureSession, setCaptureSession] =
+    useState<CaptureSessionView | null>(null);
+  const [isCreatingCaptureSession, setIsCreatingCaptureSession] =
+    useState(false);
+  const [signatureSession, setSignatureSession] =
+    useState<SignatureSessionView | null>(null);
+  const [isCreatingSignatureSession, setIsCreatingSignatureSession] =
+    useState(false);
+  const [clientSignature, setClientSignature] = useState<string | null>(null);
+  const [signatureLinkCopied, setSignatureLinkCopied] = useState(false);
+  const [aiFilledFields, setAiFilledFields] = useState<ExtractableField[]>([]);
+  const [extractedDataConfirmed, setExtractedDataConfirmed] = useState(true);
   // Form state
-  const [formData, setFormData] = useState({
-    nome: "",
-    cognome: "",
-    dataNascita: "",
-    luogoNascita: "",
-    codiceFiscale: "",
-    telefono: "", // 👈 جديد
-    email: "",
-    numeroVestanet: "",
-    sedeSelezionata: "",
-    tipoRichiesta: "asilo" as TipoRichiesta,
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
+
+  useEffect(() => {
+    return () => {
+      if (documentPreview) URL.revokeObjectURL(documentPreview.url);
+    };
+  }, [documentPreview]);
+
+  const closeDocumentPreview = () => setDocumentPreview(null);
+
+  const startNewPractice = () => {
+    const hasCurrentWork = Object.values(formData).some(
+      (value) => value !== "" && value !== "asilo",
+    ) || Boolean(sourceDocument || clientSignature || captureSession || signatureSession);
+
+    if (hasCurrentWork && !window.confirm("Iniziare una nuova pratica? I dati attuali verranno cancellati.")) {
+      return;
+    }
+
+    setFormData(INITIAL_FORM_DATA);
+    setErrors({});
+    setTouched({});
+    setExtractionMessage(null);
+    setDocumentPreview(null);
+    setSourceDocument(null);
+    setCaptureSession(null);
+    setSignatureSession(null);
+    setClientSignature(null);
+    setSignatureLinkCopied(false);
+    setAiFilledFields([]);
+    setExtractedDataConfirmed(true);
+    setCopiedField(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onNewPractice();
+  };
+
+  const handleDownloadImagePdf = async () => {
+    if (!documentPreview || documentPreview.type === "application/pdf") return;
+
+    setIsConvertingImage(true);
+    try {
+      await downloadImageAsPdf(documentPreview.url, documentPreview.name);
+    } catch {
+      setExtractionMessage({
+        type: "error",
+        text: "Impossibile convertire l'immagine in PDF.",
+      });
+    } finally {
+      setIsConvertingImage(false);
+    }
+  };
+
+  const copyField = async (field: string, value: string) => {
+    if (!value.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(value.trim());
+      setCopiedField(field);
+      window.setTimeout(() => {
+        setCopiedField((current) => (current === field ? null : current));
+      }, 1600);
+    } catch {
+      setExtractionMessage({
+        type: "error",
+        text: "Impossibile copiare il dato. Selezionalo manualmente.",
+      });
+    }
+  };
+
+  const CopyButton = ({ field, value }: { field: string; value: string }) => (
+    <button
+      type="button"
+      onClick={() => copyField(field, value)}
+      disabled={!value.trim()}
+      aria-label={`Copia ${field}`}
+      className="inline-flex min-w-[58px] items-center justify-center rounded-md border border-slate-600/70 bg-white/5 px-2 py-1 text-xs font-medium text-slate-300 transition hover:border-sky-400/50 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-35"
+    >
+      {copiedField === field ? "Copiato ✓" : "Copia"}
+    </button>
+  );
+
+  const processDocument = async (file: File) => {
+    setIsExtracting(true);
+    setExtractionMessage(null);
+
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/extract-document", { method: "POST", body });
+      const result = (await response.json()) as { data?: ExtractedData; error?: string };
+      if (!response.ok || !result.data) throw new Error(result.error || "Analisi non riuscita.");
+
+      const fieldsFilledByAI = (Object.entries(result.data) as Array<
+        [ExtractableField, string]
+      >)
+        .filter(([key, value]) => value?.trim() && !formData[key].trim())
+        .map(([key]) => key);
+
+      setFormData((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(result.data ?? {}) as Array<
+          [ExtractableField, string]
+        >) {
+          if (value?.trim() && !current[key].trim()) {
+            next[key] = key === "codiceFiscale" ? value.trim().toUpperCase() : value.trim();
+          }
+        }
+        return next;
+      });
+      setExtractionMessage({
+        type: "success",
+        text: fieldsFilledByAI.length > 0
+          ? `${fieldsFilledByAI.length} campi compilati. Controlla i dati evidenziati.`
+          : "Nessun campo vuoto compilabile trovato. Controlla il documento.",
+      });
+      setAiFilledFields(fieldsFilledByAI);
+      setExtractedDataConfirmed(fieldsFilledByAI.length === 0);
+      setDocumentPreview({
+        url: URL.createObjectURL(file),
+        name: file.name,
+        type: file.type,
+      });
+      setSourceDocument(file);
+    } catch (error) {
+      setExtractionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Errore durante l'analisi.",
+      });
+    } finally {
+      setIsExtracting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await processDocument(file);
+  };
+
+  const createPhoneCaptureSession = async () => {
+    setIsCreatingCaptureSession(true);
+    setExtractionMessage(null);
+    try {
+      const response = await fetch("/api/capture-sessions", { method: "POST" });
+      const result = (await response.json()) as { id?: string; error?: string };
+      if (!response.ok || !result.id) throw new Error(result.error || "Sessione non disponibile.");
+
+      const captureUrl = `${window.location.origin}/capture/${result.id}`;
+      const qrCode = await QRCode.toDataURL(captureUrl, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: "M",
+      });
+      setCaptureSession({ id: result.id, qrCode, captureUrl });
+    } catch (error) {
+      setExtractionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Impossibile creare il QR.",
+      });
+    } finally {
+      setIsCreatingCaptureSession(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!captureSession) return;
+    let stopped = false;
+
+    const checkForPhoto = async () => {
+      try {
+        const response = await fetch(`/api/capture-sessions/${captureSession.id}`, {
+          cache: "no-store",
+        });
+        const result = (await response.json()) as {
+          status?: "pending" | "ready";
+          error?: string;
+          file?: { dataUrl: string; name: string; type: string };
+        };
+
+        if (response.status === 404) {
+          if (!stopped) {
+            setCaptureSession(null);
+            setExtractionMessage({ type: "error", text: "Il QR è scaduto. Creane uno nuovo." });
+          }
+          return;
+        }
+
+        if (result.status === "ready" && result.file && !stopped) {
+          stopped = true;
+          setCaptureSession(null);
+          const blob = await (await fetch(result.file.dataUrl)).blob();
+          const file = new File([blob], result.file.name, { type: result.file.type });
+          await processDocument(file);
+        }
+      } catch {
+        // A temporary polling error is retried on the next interval.
+      }
+    };
+
+    void checkForPhoto();
+    const interval = window.setInterval(checkForPhoto, 3000);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+    // processDocument intentionally uses the latest component state when a photo arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureSession?.id]);
+
+  const createClientSignatureSession = async () => {
+    if (!validateAll()) return;
+
+    setIsCreatingSignatureSession(true);
+    setExtractionMessage(null);
+    try {
+      const data = buildSubmitData();
+      const procuraBlob = await generateProcuraPdf(data);
+      const requestBody = new FormData();
+      requestBody.append("clientName", `${data.nome} ${data.cognome}`);
+      requestBody.append(
+        "document",
+        new File([procuraBlob], "procura-da-firmare.pdf", {
+          type: "application/pdf",
+        }),
+      );
+      const response = await fetch("/api/signature-sessions", {
+        method: "POST",
+        body: requestBody,
+      });
+      const result = (await response.json()) as {
+        id?: string;
+        retrievalToken?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.id || !result.retrievalToken) {
+        throw new Error(result.error || "Sessione firma non disponibile.");
+      }
+
+      const captureUrl = `${window.location.origin}/sign/${result.id}`;
+      const qrCode = await QRCode.toDataURL(captureUrl, {
+        width: 240,
+        margin: 1,
+        errorCorrectionLevel: "M",
+      });
+      setClientSignature(null);
+      setSignatureLinkCopied(false);
+      setSignatureSession({
+        id: result.id,
+        qrCode,
+        captureUrl,
+        retrievalToken: result.retrievalToken,
+      });
+    } catch (error) {
+      setExtractionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Impossibile creare il QR firma.",
+      });
+    } finally {
+      setIsCreatingSignatureSession(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!signatureSession) return;
+    let stopped = false;
+
+    const checkForSignature = async () => {
+      try {
+        const response = await fetch(
+          `/api/signature-sessions/${signatureSession.id}?retrievalToken=${encodeURIComponent(signatureSession.retrievalToken)}`,
+          { cache: "no-store" },
+        );
+        const result = (await response.json()) as {
+          status?: "pending" | "ready";
+          signature?: string;
+        };
+
+        if (response.status === 404) {
+          if (!stopped) {
+            setSignatureSession(null);
+            setExtractionMessage({ type: "error", text: "Il QR firma è scaduto. Creane uno nuovo." });
+          }
+          return;
+        }
+
+        if (result.status === "ready" && result.signature && !stopped) {
+          stopped = true;
+          setClientSignature(result.signature);
+          setSignatureSession(null);
+        }
+      } catch {
+        // A temporary polling error is retried on the next interval.
+      }
+    };
+
+    void checkForSignature();
+    const interval = window.setInterval(checkForSignature, 3000);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+  }, [signatureSession?.id]);
+
+  const copySignatureLink = async () => {
+    if (!signatureSession) return;
+    try {
+      await navigator.clipboard.writeText(signatureSession.captureUrl);
+      setSignatureLinkCopied(true);
+      window.setTimeout(() => setSignatureLinkCopied(false), 1800);
+    } catch {
+      window.prompt("Copia il link della firma:", signatureSession.captureUrl);
+    }
+  };
+
+  const shareSignatureLinkOnWhatsApp = () => {
+    if (!signatureSession) return;
+    const clientName = `${formData.nome} ${formData.cognome}`.trim();
+    const message = `Buongiorno ${clientName}, apri questo link per firmare la Procura. Il link è personale e utilizzabile una sola volta: ${signatureSession.captureUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  };
 
   const buildSubmitData = (): ProcuraFormData => ({
     ...formData,
@@ -137,6 +518,10 @@ export function ProcuraForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
+    if (clientSignature || signatureSession) {
+      setClientSignature(null);
+      setSignatureSession(null);
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     if (touched[name]) {
@@ -170,8 +555,16 @@ export function ProcuraForm({
   };
 
   // Validate all fields
-  const validateAll = (): boolean =>
-    validateFields([
+  const validateAll = (): boolean => {
+    if (aiFilledFields.length > 0 && !extractedDataConfirmed) {
+      setExtractionMessage({
+        type: "error",
+        text: "Controlla i campi evidenziati e premi «Dati controllati» prima di continuare.",
+      });
+      return false;
+    }
+
+    return validateFields([
       "nome",
       "cognome",
       "dataNascita",
@@ -182,6 +575,7 @@ export function ProcuraForm({
       "sedeSelezionata",
       "numeroVestanet",
     ]);
+  };
 
   // Handle form submission
   const handleSubmit = (
@@ -219,18 +613,31 @@ export function ProcuraForm({
 
     const data = buildSubmitData();
 
-    if (mode === "pdf") onSubmitPdfOnly(data);
-    else onSubmitAll(data);
+    if (mode === "pdf") onSubmitPdfOnly(data, clientSignature || undefined);
+    else {
+      if (!sourceDocument) {
+        setExtractionMessage({
+          type: "error",
+          text: "Carica o fotografa il documento prima di generare il fascicolo completo.",
+        });
+        return;
+      }
+      onSubmitAll(data, clientSignature || undefined, sourceDocument);
+    }
   };
 
   // Input class helper
   const inputClass = (fieldName: string) => `
     w-full px-4 py-3 rounded-lg border transition-all duration-200
-    bg-white/5 backdrop-blur-sm
+    ${aiFilledFields.includes(fieldName as ExtractableField) && !extractedDataConfirmed
+      ? "bg-sky-500/10"
+      : "bg-white/5"} backdrop-blur-sm
     text-white placeholder-slate-400
     ${
       errors[fieldName] && touched[fieldName]
         ? "border-red-400/50 focus:border-red-400 focus:ring-2 focus:ring-red-400/20"
+        : aiFilledFields.includes(fieldName as ExtractableField) && !extractedDataConfirmed
+          ? "border-sky-400/70 focus:border-sky-300 focus:ring-2 focus:ring-sky-400/20"
         : "border-slate-600/50 focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/20"
     }
     outline-none
@@ -243,22 +650,174 @@ export function ProcuraForm({
       transition={{ duration: 0.5 }}
       className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl"
     >
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-white mb-1">
-          Procura Francesca
-        </h2>
-        <p className="text-slate-400 text-sm">
-          Inserisci i dati del cliente per generare la procura
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-white mb-1">
+            Procura Francesca
+          </h2>
+          <p className="text-slate-400 text-sm">
+            Inserisci i dati del cliente per generare la procura
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={startNewPractice}
+          className="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-500/20"
+        >
+          Nuova pratica
+        </button>
       </div>
 
       <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+        <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-sky-100">Compila da documento</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Opzionale · PDF, JPG, PNG o WEBP · massimo 10 MB
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:items-stretch">
+              <label className={`inline-flex cursor-pointer items-center justify-center rounded-lg border border-sky-400/40 bg-sky-500/10 px-4 py-2.5 text-sm font-medium text-sky-200 transition hover:bg-sky-500/20 ${isExtracting ? "pointer-events-none opacity-60" : ""}`}>
+                {isExtracting ? "Analisi in corso..." : "Scegli documento"}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={handleDocumentUpload}
+                  disabled={isExtracting}
+                  className="sr-only"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={createPhoneCaptureSession}
+                disabled={isCreatingCaptureSession || isExtracting}
+                className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-wait disabled:opacity-60"
+              >
+                {isCreatingCaptureSession ? "Creazione QR..." : "Scatta con telefono"}
+              </button>
+            </div>
+          </div>
+          {extractionMessage && (
+            <p
+              role="status"
+              className={`mt-3 text-xs ${
+                extractionMessage.type === "success" ? "text-emerald-300" : "text-red-300"
+              }`}
+            >
+              {extractionMessage.text}
+            </p>
+          )}
+          {captureSession && (
+            <div className="mt-4 rounded-xl border border-emerald-400/30 bg-slate-950/70 p-4 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={captureSession.qrCode}
+                alt="QR per fotografare il documento"
+                className="mx-auto h-52 w-52 rounded-lg bg-white p-2"
+              />
+              <p className="mt-3 text-sm font-medium text-white">Scansiona con il telefono</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Il QR è valido una sola volta per 10 minuti.
+              </p>
+              {(captureSession.captureUrl.includes("localhost") ||
+                captureSession.captureUrl.includes("127.0.0.1")) && (
+                <p className="mt-2 text-xs text-amber-300">
+                  Su localhost il telefono non può collegarsi: apri il sito tramite l'indirizzo di rete del computer o il sito pubblicato.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setCaptureSession(null)}
+                className="mt-3 rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:text-white"
+              >
+                Annulla
+              </button>
+            </div>
+          )}
+          {aiFilledFields.length > 0 && !extractedDataConfirmed && (
+            <div className="mt-4 rounded-xl border border-sky-400/40 bg-sky-500/10 p-3">
+              <p className="text-sm font-medium text-sky-100">
+                Controlla i campi evidenziati in azzurro
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                Confrontali con il documento prima di confermare.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setExtractedDataConfirmed(true);
+                  setExtractionMessage({
+                    type: "success",
+                    text: "Dati estratti controllati e confermati.",
+                  });
+                }}
+                className="mt-3 w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-500"
+              >
+                Dati controllati ✓
+              </button>
+            </div>
+          )}
+        </div>
+
+        {documentPreview && (
+          <section className="overflow-hidden rounded-xl border border-slate-600/60 bg-slate-900/60">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-700/70 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white">Documento caricato</p>
+                <p className="truncate text-xs text-slate-400">{documentPreview.name}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {documentPreview.type !== "application/pdf" && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadImagePdf}
+                    disabled={isConvertingImage}
+                    className="rounded-md border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-200 transition hover:bg-sky-500/20 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {isConvertingImage ? "Conversione..." : "Scarica PDF"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeDocumentPreview}
+                  className="rounded-md border border-slate-600/70 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-red-400/50 hover:text-red-300"
+                >
+                  Nascondi
+                </button>
+              </div>
+            </div>
+
+            {documentPreview.type === "application/pdf" ? (
+              <iframe
+                src={documentPreview.url}
+                title={`Anteprima ${documentPreview.name}`}
+                className="h-[520px] w-full bg-white"
+              />
+            ) : (
+              <div className="flex max-h-[560px] items-center justify-center overflow-auto bg-slate-950 p-3">
+                {/* Blob URLs are local previews and do not need Next.js image optimization. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={documentPreview.url}
+                  alt={`Anteprima ${documentPreview.name}`}
+                  className="max-h-[530px] max-w-full rounded object-contain"
+                />
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Nome e Cognome */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Nome <span className="text-red-400">*</span>
-            </label>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Nome <span className="text-red-400">*</span>
+              </label>
+              <CopyButton field="nome" value={formData.nome} />
+            </div>
             <input
               type="text"
               name="nome"
@@ -273,9 +832,12 @@ export function ProcuraForm({
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Cognome <span className="text-red-400">*</span>
-            </label>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Cognome <span className="text-red-400">*</span>
+              </label>
+              <CopyButton field="cognome" value={formData.cognome} />
+            </div>
             <input
               type="text"
               name="cognome"
@@ -349,9 +911,12 @@ export function ProcuraForm({
         </div>
         {/* Telefono */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">
-            Telefono <span className="text-red-400">*</span>
-          </label>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-slate-300">
+              Telefono <span className="text-red-400">*</span>
+            </label>
+            <CopyButton field="telefono" value={formData.telefono} />
+          </div>
           <input
             type="text"
             name="telefono"
@@ -387,9 +952,12 @@ export function ProcuraForm({
 
         {/* Numero Vestanet */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">
-            Numero VESTANET <span className="text-red-400">*</span>
-          </label>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-slate-300">
+              Numero VESTANET <span className="text-red-400">*</span>
+            </label>
+            <CopyButton field="numero Vestanet" value={formData.numeroVestanet.toUpperCase()} />
+          </div>
           <input
             type="text"
             name="numeroVestanet"
@@ -512,6 +1080,102 @@ export function ProcuraForm({
             </label>
           </div>
         </div>
+
+        <section className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-violet-100">Firma del cliente</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Compila tutti i campi, poi fai firmare la Procura dal telefono.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={createClientSignatureSession}
+              disabled={isCreatingSignatureSession}
+              className="rounded-lg border border-violet-400/40 bg-violet-500/10 px-4 py-2.5 text-sm font-medium text-violet-200 transition hover:bg-violet-500/20 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isCreatingSignatureSession
+                ? "Creazione QR..."
+                : clientSignature
+                  ? "Rifai firma"
+                  : "Firma con telefono"}
+            </button>
+          </div>
+
+          {signatureSession && (
+            <div className="mt-4 rounded-xl border border-violet-400/30 bg-slate-950/70 p-4 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={signatureSession.qrCode}
+                alt="QR per firmare la Procura"
+                className="mx-auto h-52 w-52 rounded-lg bg-white p-2"
+              />
+              <p className="mt-3 text-sm font-medium text-white">Scansiona per firmare</p>
+              <p className="mt-1 text-xs text-slate-400">In attesa della firma · valido 10 minuti</p>
+              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900 p-2 text-left">
+                <p className="break-all text-[11px] text-slate-400">
+                  {signatureSession.captureUrl}
+                </p>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={copySignatureLink}
+                  className="rounded-md border border-violet-400/40 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-200 hover:bg-violet-500/20"
+                >
+                  {signatureLinkCopied ? "Copiato ✓" : "Copia link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={shareSignatureLinkOnWhatsApp}
+                  className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20"
+                >
+                  Invia con WhatsApp
+                </button>
+              </div>
+              {(signatureSession.captureUrl.includes("localhost") ||
+                signatureSession.captureUrl.includes("127.0.0.1")) && (
+                <p className="mt-2 text-xs text-amber-300">
+                  Apri il sito sul computer tramite il suo indirizzo di rete prima di creare il QR.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setSignatureSession(null)}
+                className="mt-3 rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:text-white"
+              >
+                Annulla
+              </button>
+            </div>
+          )}
+
+          {clientSignature && (
+            <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={clientSignature}
+                  alt="Firma del cliente"
+                  className="h-20 min-w-0 flex-1 rounded-lg bg-white object-contain p-2"
+                />
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-medium text-emerald-200">Firma ricevuta ✓</p>
+                  <button
+                    type="button"
+                    onClick={() => setClientSignature(null)}
+                    className="mt-2 text-xs text-red-300 hover:text-red-200"
+                  >
+                    Rimuovi
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Se modifichi i dati del modulo, la firma verrà rimossa automaticamente.
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* Submit Buttons */}
         <motion.button

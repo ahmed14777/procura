@@ -106,6 +106,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     alignSelf: "center",
   },
+  clientSignatureImage: {
+    width: 145,
+    height: 55,
+    objectFit: "contain",
+    alignSelf: "center",
+  },
 
   signatureBlock: {
     width: "40%",
@@ -371,12 +377,22 @@ function Nomino() {
   );
 }
 
-function Firme({ data }: { data: ProcuraFormData }) {
+function Firme({
+  data,
+  clientSignature,
+}: {
+  data: ProcuraFormData;
+  clientSignature?: string;
+}) {
   return (
     <View style={styles.signatureArea}>
       {/* Client Signature (Manual) */}
       <View style={styles.signatureBlock}>
-        <View style={styles.signaturePreview} />
+        <View style={styles.signaturePreview}>
+          {clientSignature && (
+            <Image src={clientSignature} style={styles.clientSignatureImage} />
+          )}
+        </View>
         <View style={styles.signatureLine} />
         <Text style={styles.signatureLabel}>Il/La Mandante</Text>
         <Text style={styles.signatureLabel}>
@@ -485,7 +501,13 @@ function AutodichiarazioneFirma() {
    DOCUMENT
 ========================================================= */
 
-export function ProcuraDocument({ data }: { data: ProcuraFormData }) {
+export function ProcuraDocument({
+  data,
+  clientSignature,
+}: {
+  data: ProcuraFormData;
+  clientSignature?: string;
+}) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -493,7 +515,7 @@ export function ProcuraDocument({ data }: { data: ProcuraFormData }) {
         <DataDocumento />
         <DatiCliente data={data} />
         <Nomino />
-        <Firme data={data} />
+        <Firme data={data} clientSignature={clientSignature} />
         <Footer />
       </Page>
     </Document>
@@ -520,8 +542,11 @@ export function AutodichiarazioneDocument({ data }: { data: ProcuraFormData }) {
    PDF HELPERS
 ========================================================= */
 
-export async function generateProcuraPdf(data: ProcuraFormData): Promise<Blob> {
-  const document = <ProcuraDocument data={data} />;
+export async function generateProcuraPdf(
+  data: ProcuraFormData,
+  clientSignature?: string,
+): Promise<Blob> {
+  const document = <ProcuraDocument data={data} clientSignature={clientSignature} />;
   return await pdf(document).toBlob();
 }
 
@@ -535,8 +560,9 @@ export async function generateAutodichiarazionePdf(
 export async function downloadProcuraPdf(
   data: ProcuraFormData,
   filename?: string,
+  clientSignature?: string,
 ): Promise<void> {
-  const blob = await generateProcuraPdf(data);
+  const blob = await generateProcuraPdf(data, clientSignature);
 
   const defaultFilename = `Procura_${data.cognome}_${data.nome}_${
     new Date().toISOString().split("T")[0]
