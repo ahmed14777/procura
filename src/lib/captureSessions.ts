@@ -1,6 +1,11 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { del, get, put } from "@vercel/blob";
 import { getRedis, hasRemoteStorage } from "@/lib/serverStorage";
+import {
+  cleanupExpiredBlobs,
+  registerBlobForCleanup,
+  unregisterBlobFromCleanup,
+} from "@/lib/blobCleanup";
 
 const SESSION_LIFETIME_SECONDS = 10 * 60;
 
@@ -10,8 +15,9 @@ export interface CapturedFile {
   type: string;
 }
 
-interface CaptureSession {
+export interface CaptureSession {
   expiresAt: number;
+  retrievalTokenHash: string;
   file?: CapturedFile;
   storedFile?: { blobUrl: string; name: string; type: string };
 }
@@ -24,17 +30,20 @@ declare global {
 const localSessions = globalThis.captureSessions ?? new Map<string, CaptureSession>();
 globalThis.captureSessions = localSessions;
 const key = (id: string) => `procura:capture:${id}`;
+const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 export async function createCaptureSession() {
+  await cleanupExpiredBlobs();
   const id = randomBytes(24).toString("base64url");
+  const retrievalToken = randomBytes(24).toString("base64url");
   const expiresAt = Date.now() + SESSION_LIFETIME_SECONDS * 1000;
-  const session = { expiresAt };
+  const session = { expiresAt, retrievalTokenHash: hashToken(retrievalToken) };
   if (hasRemoteStorage()) {
     await getRedis().set(key(id), session, { ex: SESSION_LIFETIME_SECONDS });
   } else {
     localSessions.set(id, session);
   }
-  return { id, expiresAt };
+  return { id, expiresAt, retrievalToken };
 }
 
 export async function getCaptureSession(id: string) {
@@ -58,6 +67,7 @@ export async function saveCapturedFile(id: string, file: File) {
       addRandomSuffix: true,
     });
     const storedFile = { blobUrl: blob.url, name: file.name, type: file.type };
+    await registerBlobForCleanup(blob.url, session.expiresAt);
     const ttl = Math.max(1, Math.ceil((session.expiresAt - Date.now()) / 1000));
     await getRedis().set(key(id), { ...session, storedFile }, { ex: ttl });
     return true;
@@ -85,11 +95,44 @@ export async function consumeCapturedFile(id: string) {
       name: session.storedFile.name,
       type: session.storedFile.type,
     };
-    await Promise.all([getRedis().del(key(id)), del(session.storedFile.blobUrl)]);
     return file;
   }
 
   if (!session.file) return null;
-  localSessions.delete(id);
   return session.file;
+}
+
+export function getCaptureFileMetadata(session: CaptureSession) {
+  if (session.storedFile) {
+    return { name: session.storedFile.name, type: session.storedFile.type };
+  }
+  if (session.file) return { name: session.file.name, type: session.file.type };
+  return null;
+}
+
+export async function getCapturedFileContent(session: CaptureSession) {
+  if (session.storedFile) {
+    return get(session.storedFile.blobUrl, { access: "private", useCache: false });
+  }
+  if (!session.file) return null;
+  return Buffer.from(session.file.dataUrl.split(",", 2)[1] || "", "base64");
+}
+
+export function canRetrieveCapture(session: CaptureSession, retrievalToken: string | null) {
+  return Boolean(retrievalToken && hashToken(retrievalToken) === session.retrievalTokenHash);
+}
+
+export async function deleteCaptureSession(id: string, retrievalToken: string | null) {
+  const session = await getCaptureSession(id);
+  if (!session || !canRetrieveCapture(session, retrievalToken)) return false;
+  if (hasRemoteStorage()) {
+    await getRedis().del(key(id));
+    if (session.storedFile?.blobUrl) {
+      await del(session.storedFile.blobUrl);
+      await unregisterBlobFromCleanup([session.storedFile.blobUrl]);
+    }
+  } else {
+    localSessions.delete(id);
+  }
+  return true;
 }

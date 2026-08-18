@@ -1,13 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
-export default function CapturePage({ params }: { params: { sessionId: string } }) {
+export default function CapturePage() {
+  const { sessionId } = useParams<{ sessionId: string }>();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    if (!sent) return;
+    const timeout = window.setTimeout(() => window.close(), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [sent]);
 
   const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
@@ -25,7 +33,7 @@ export default function CapturePage({ params }: { params: { sessionId: string } 
     try {
       const body = new FormData();
       body.append("file", file);
-      const response = await fetch(`/api/capture-sessions/${params.sessionId}`, {
+      const response = await fetch(`/api/capture-sessions/${sessionId}`, {
         method: "POST",
         body,
       });
@@ -45,7 +53,16 @@ export default function CapturePage({ params }: { params: { sessionId: string } 
         <div className="max-w-sm rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-8">
           <div className="mb-4 text-5xl">✓</div>
           <h1 className="text-xl font-semibold text-white">Foto inviata</h1>
-          <p className="mt-2 text-sm text-slate-300">Puoi tornare al computer.</p>
+          <p className="mt-2 text-sm text-slate-300">
+            La pagina si chiuderà automaticamente. Se resta aperta, puoi chiuderla e tornare al computer.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.close()}
+            className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white"
+          >
+            Chiudi pagina
+          </button>
         </div>
       </main>
     );

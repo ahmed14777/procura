@@ -182,20 +182,20 @@ export default function Home() {
   }, [currentFormData, currentClientSignature, currentSourceDocument]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1e293b_0%,#0f172a_42%,#0b1120_100%)] flex flex-col">
       {/* Header */}
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 py-4 sm:px-6 sm:py-7">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="grid lg:grid-cols-2 gap-6 h-full"
+          className={`grid gap-5 h-full ${pecResult || email ? "xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]" : "grid-cols-1"}`}
         >
           {/* Left Side - Form */}
-          <div>
+          <div className="min-w-0">
             <ProcuraForm
               onSubmitPdfOnly={handlePdfOnly}
               onSubmitAutodichiarazione={handleAutodichiarazionePdf}
@@ -233,14 +233,11 @@ export default function Home() {
           </div>
 
           {/* Right Side - Results */}
-          <div>
-            <ResultsPanel
-              pecResult={pecResult}
-              email={email}
-              onDownloadPdf={handleDownloadPdf}
-              isDownloading={isDownloading}
-            />
-          </div>
+          {(pecResult || email) && (
+            <div className="min-w-0">
+              <ResultsPanel pecResult={pecResult} email={email} onDownloadPdf={handleDownloadPdf} isDownloading={isDownloading} />
+            </div>
+          )}
         </motion.div>
       </main>
 

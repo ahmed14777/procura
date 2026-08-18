@@ -4,15 +4,16 @@ import { getSignatureDocument, getSignatureSession } from "@/lib/signatureSessio
 export const runtime = "nodejs";
 
 interface RouteContext {
-  params: { sessionId: string };
+  params: Promise<{ sessionId: string }>;
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {
-  const session = await getSignatureSession(params.sessionId);
+  const { sessionId } = await params;
+  const session = await getSignatureSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: "Sessione scaduta." }, { status: 404 });
   }
-  if (session.signature) {
+  if (session.signature || session.signatureUrl) {
     return NextResponse.json(
       { error: "Questo link è già stato utilizzato e non è più valido." },
       { status: 410 },

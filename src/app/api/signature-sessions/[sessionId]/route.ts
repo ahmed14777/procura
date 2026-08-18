@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   consumeSignature,
+  deleteSignatureSession,
   getSignatureSession,
   saveSignature,
 } from "@/lib/signatureSessions";
@@ -8,15 +9,16 @@ import {
 export const runtime = "nodejs";
 
 interface RouteContext {
-  params: { sessionId: string };
+  params: Promise<{ sessionId: string }>;
 }
 
 export async function GET(request: Request, { params }: RouteContext) {
-  const session = await getSignatureSession(params.sessionId);
+  const { sessionId } = await params;
+  const session = await getSignatureSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: "Sessione scaduta." }, { status: 404 });
   }
-  if (!session.signature) {
+  if (!session.signature && !session.signatureUrl) {
     return NextResponse.json({ status: "pending", clientName: session.clientName });
   }
   const retrievalToken = new URL(request.url).searchParams.get("retrievalToken");
@@ -27,7 +29,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     );
   }
 
-  const signature = await consumeSignature(params.sessionId, retrievalToken);
+  const signature = await consumeSignature(sessionId, retrievalToken);
   if (!signature) {
     return NextResponse.json({ error: "Accesso non autorizzato." }, { status: 403 });
   }
@@ -35,7 +37,8 @@ export async function GET(request: Request, { params }: RouteContext) {
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
-  const session = await getSignatureSession(params.sessionId);
+  const { sessionId } = await params;
+  const session = await getSignatureSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: "Sessione scaduta." }, { status: 404 });
   }
@@ -47,8 +50,17 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (body.signature.length > 1_500_000) {
     return NextResponse.json({ error: "Firma troppo grande." }, { status: 413 });
   }
-  if (!(await saveSignature(params.sessionId, body.signature))) {
+  if (!(await saveSignature(sessionId, body.signature))) {
     return NextResponse.json({ error: "Firma già inviata." }, { status: 409 });
+  }
+  return NextResponse.json({ success: true });
+}
+
+export async function DELETE(request: Request, { params }: RouteContext) {
+  const { sessionId } = await params;
+  const retrievalToken = new URL(request.url).searchParams.get("retrievalToken");
+  if (!(await deleteSignatureSession(sessionId, retrievalToken))) {
+    return NextResponse.json({ error: "Accesso non autorizzato." }, { status: 403 });
   }
   return NextResponse.json({ success: true });
 }

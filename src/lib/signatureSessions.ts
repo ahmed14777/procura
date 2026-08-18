@@ -1,8 +1,13 @@
 import { createHash, randomBytes } from "crypto";
 import { del, get, put } from "@vercel/blob";
 import { getRedis, hasRemoteStorage } from "@/lib/serverStorage";
+import {
+  cleanupExpiredBlobs,
+  registerBlobForCleanup,
+  unregisterBlobFromCleanup,
+} from "@/lib/blobCleanup";
 
-const SESSION_LIFETIME_SECONDS = 24 * 60 * 60;
+const SESSION_LIFETIME_SECONDS = 10 * 60;
 
 interface SignatureSession {
   clientName: string;
@@ -25,6 +30,7 @@ const key = (id: string) => `procura:signature:${id}`;
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 export async function createSignatureSession(clientName: string, document: File) {
+  await cleanupExpiredBlobs();
   const id = randomBytes(24).toString("base64url");
   const retrievalToken = randomBytes(24).toString("base64url");
   const expiresAt = Date.now() + SESSION_LIFETIME_SECONDS * 1000;
@@ -36,6 +42,7 @@ export async function createSignatureSession(clientName: string, document: File)
       contentType: "application/pdf",
       addRandomSuffix: true,
     });
+    await registerBlobForCleanup(blob.url, expiresAt);
     await getRedis().set(key(id), { ...baseSession, documentUrl: blob.url }, {
       ex: SESSION_LIFETIME_SECONDS,
     });
@@ -69,6 +76,7 @@ export async function saveSignature(id: string, signature: string) {
       contentType: "image/png",
       addRandomSuffix: true,
     });
+    await registerBlobForCleanup(blob.url, session.expiresAt);
     const ttl = Math.max(1, Math.ceil((session.expiresAt - Date.now()) / 1000));
     await getRedis().set(key(id), { ...session, signatureUrl: blob.url }, { ex: ttl });
   } else {
@@ -92,14 +100,25 @@ export async function consumeSignature(id: string, retrievalToken: string | null
   }
   if (!signature) return null;
 
+  return signature;
+}
+
+export async function deleteSignatureSession(id: string, retrievalToken: string | null) {
+  const session = await getSignatureSession(id);
+  if (!session || !retrievalToken || hashToken(retrievalToken) !== session.retrievalTokenHash) {
+    return false;
+  }
   if (hasRemoteStorage()) {
     const blobUrls = [session.documentUrl, session.signatureUrl].filter(Boolean) as string[];
     await getRedis().del(key(id));
-    if (blobUrls.length) await del(blobUrls);
+    if (blobUrls.length) {
+      await del(blobUrls);
+      await unregisterBlobFromCleanup(blobUrls);
+    }
   } else {
     localSessions.delete(id);
   }
-  return signature;
+  return true;
 }
 
 export async function getSignatureDocument(session: SignatureSession) {

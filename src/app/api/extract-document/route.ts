@@ -19,7 +19,7 @@ const extractionSchema = {
     numeroVestanet: {
       type: 'string',
       description:
-        'Complete Vestanet reference including its two-letter prefix and all following digits, for example AB12345. Empty if not clearly visible.',
+        'Vestanet code printed after the label ID. Example: ID MI876365 means numeroVestanet is MI876365. ID is only a label and must not be included. Preserve the two letters and every following digit.',
     },
   },
   required: [
@@ -49,6 +49,15 @@ function getOutputText(response: unknown): string | null {
     }
   }
   return null
+}
+
+function normalizeVestanet(value: unknown) {
+  if (typeof value !== 'string') return ''
+  const normalized = value.trim().toUpperCase()
+  const afterId = normalized.match(/\bID\s*[:.#-]?\s*([A-Z]{2})[\s-]*(\d+)\b/)
+  if (afterId) return `${afterId[1]}${afterId[2]}`
+  const code = normalized.match(/\b([A-Z]{2})[\s-]*(\d+)\b/)
+  return code ? `${code[1]}${code[2]}` : ''
 }
 
 export async function POST(request: Request) {
@@ -110,7 +119,13 @@ export async function POST(request: Request) {
 
 For nome and cognome, first use explicit document labels and machine-readable data when available: Cognome/Surname/Nom identifies cognome; Nome/Given names/Prénoms identifies nome. If the labels are absent or unclear, apply this document convention: the surname is commonly printed first. When two separate uppercase name lines are shown, treat the first line as cognome and the second line as nome. When both are uppercase on one line and no reliable separator or label exists, interpret the first part as cognome only when the document layout clearly follows surname-first order; otherwise leave uncertain values empty. Preserve compound names and surnames without dropping words.
 
-Normalize birth date to YYYY-MM-DD and codice fiscale to uppercase. numeroVestanet is a case/reference number, not a passport or identity-card number. A valid numeroVestanet starts with exactly two letters followed by digits. The two initial letters are part of the number and must always be preserved: extract AB12345, never only 12345. Return it uppercase and without spaces.`,
+Normalize birth date to YYYY-MM-DD and codice fiscale to uppercase.
+
+IMPORTANT — search the entire document specifically for numeroVestanet even when the document contains many other fields. It is commonly printed with the label "ID", followed by a space and then a code made of exactly two letters plus digits. "ID" is the field label, not part of the value. Examples:
+- Printed "ID MI876365" → return numeroVestanet "MI876365"
+- Printed "ID: RM 123456" → return numeroVestanet "RM123456"
+- Printed "ID TO98765" → return numeroVestanet "TO98765"
+Never return only the digits and never return the leading label ID. Do not confuse it with passport, identity-card, pratica, protocollo or codice fiscale numbers. Return it uppercase without spaces. If no ID-labelled two-letter-plus-digits code is visible, then consider another clearly labelled Vestanet reference; otherwise return an empty string.`,
               },
               documentInput,
             ],
@@ -142,7 +157,9 @@ Normalize birth date to YYYY-MM-DD and codice fiscale to uppercase. numeroVestan
       return NextResponse.json({ error: 'Nessun dato leggibile trovato.' }, { status: 422 })
     }
 
-    return NextResponse.json({ data: JSON.parse(outputText) })
+    const extracted = JSON.parse(outputText) as Record<string, unknown>
+    extracted.numeroVestanet = normalizeVestanet(extracted.numeroVestanet)
+    return NextResponse.json({ data: extracted })
   } catch (error) {
     console.error('Document extraction error', error)
     return NextResponse.json({ error: "Errore durante l'analisi del documento." }, { status: 500 })

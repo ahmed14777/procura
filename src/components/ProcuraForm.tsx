@@ -50,11 +50,10 @@ interface CaptureSessionView {
   id: string;
   qrCode: string;
   captureUrl: string;
-}
-
-interface SignatureSessionView extends CaptureSessionView {
   retrievalToken: string;
 }
+
+type SignatureSessionView = CaptureSessionView;
 
 const INITIAL_FORM_DATA = {
   nome: "",
@@ -256,8 +255,14 @@ export function ProcuraForm({
     setExtractionMessage(null);
     try {
       const response = await fetch("/api/capture-sessions", { method: "POST" });
-      const result = (await response.json()) as { id?: string; error?: string };
-      if (!response.ok || !result.id) throw new Error(result.error || "Sessione non disponibile.");
+      const result = (await response.json()) as {
+        id?: string;
+        retrievalToken?: string;
+        error?: string;
+      };
+      if (!response.ok || !result.id || !result.retrievalToken) {
+        throw new Error(result.error || "Sessione non disponibile.");
+      }
 
       const captureUrl = `${window.location.origin}/capture/${result.id}`;
       const qrCode = await QRCode.toDataURL(captureUrl, {
@@ -265,7 +270,7 @@ export function ProcuraForm({
         margin: 1,
         errorCorrectionLevel: "M",
       });
-      setCaptureSession({ id: result.id, qrCode, captureUrl });
+      setCaptureSession({ id: result.id, qrCode, captureUrl, retrievalToken: result.retrievalToken });
     } catch (error) {
       setExtractionMessage({
         type: "error",
@@ -282,13 +287,14 @@ export function ProcuraForm({
 
     const checkForPhoto = async () => {
       try {
-        const response = await fetch(`/api/capture-sessions/${captureSession.id}`, {
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `/api/capture-sessions/${captureSession.id}?retrievalToken=${encodeURIComponent(captureSession.retrievalToken)}`,
+          { cache: "no-store" },
+        );
         const result = (await response.json()) as {
           status?: "pending" | "ready";
           error?: string;
-          file?: { dataUrl: string; name: string; type: string };
+          file?: { url: string; name: string; type: string };
         };
 
         if (response.status === 404) {
@@ -298,16 +304,27 @@ export function ProcuraForm({
           }
           return;
         }
+        if (!response.ok) {
+          throw new Error(result.error || "Impossibile ricevere la foto dal telefono.");
+        }
 
         if (result.status === "ready" && result.file && !stopped) {
           stopped = true;
-          setCaptureSession(null);
-          const blob = await (await fetch(result.file.dataUrl)).blob();
+          const fileResponse = await fetch(result.file.url, { cache: "no-store" });
+          if (!fileResponse.ok) throw new Error("Impossibile scaricare la foto dal telefono.");
+          const blob = await fileResponse.blob();
           const file = new File([blob], result.file.name, { type: result.file.type });
           await processDocument(file);
+          setCaptureSession(null);
+          void fetch(
+            `/api/capture-sessions/${captureSession.id}?retrievalToken=${encodeURIComponent(captureSession.retrievalToken)}`,
+            { method: "DELETE" },
+          );
         }
-      } catch {
-        // A temporary polling error is retried on the next interval.
+      } catch (error) {
+        if (!stopped && error instanceof Error) {
+          setExtractionMessage({ type: "error", text: error.message });
+        }
       }
     };
 
@@ -387,6 +404,7 @@ export function ProcuraForm({
         const result = (await response.json()) as {
           status?: "pending" | "ready";
           signature?: string;
+          error?: string;
         };
 
         if (response.status === 404) {
@@ -396,14 +414,23 @@ export function ProcuraForm({
           }
           return;
         }
+        if (!response.ok) {
+          throw new Error(result.error || "Impossibile ricevere la firma dal telefono.");
+        }
 
         if (result.status === "ready" && result.signature && !stopped) {
           stopped = true;
           setClientSignature(result.signature);
           setSignatureSession(null);
+          void fetch(
+            `/api/signature-sessions/${signatureSession.id}?retrievalToken=${encodeURIComponent(signatureSession.retrievalToken)}`,
+            { method: "DELETE" },
+          );
         }
-      } catch {
-        // A temporary polling error is retried on the next interval.
+      } catch (error) {
+        if (!stopped && error instanceof Error) {
+          setExtractionMessage({ type: "error", text: error.message });
+        }
       }
     };
 
@@ -475,11 +502,12 @@ export function ProcuraForm({
         if (!/^[a-zA-Z\s'-]+$/.test(value))
           return "Il cognome contiene caratteri non validi";
         break;
-      case "dataNascita":
+      case "dataNascita": {
         if (!value) return "La data di nascita è obbligatoria";
         const date = new Date(value);
         if (date >= new Date()) return "La data deve essere nel passato";
         break;
+      }
       case "luogoNascita":
         if (!value.trim()) return "Il luogo di nascita è obbligatorio";
         break;
@@ -628,7 +656,7 @@ export function ProcuraForm({
 
   // Input class helper
   const inputClass = (fieldName: string) => `
-    w-full px-4 py-3 rounded-lg border transition-all duration-200
+    w-full min-h-12 px-3.5 py-3 rounded-xl border transition-all duration-200
     ${aiFilledFields.includes(fieldName as ExtractableField) && !extractedDataConfirmed
       ? "bg-sky-500/10"
       : "bg-white/5"} backdrop-blur-sm
@@ -648,9 +676,9 @@ export function ProcuraForm({
       initial={{ opacity: 0, x: -30 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
-      className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl"
+      className="bg-slate-800/65 backdrop-blur-sm rounded-2xl border border-slate-700/60 p-4 shadow-xl sm:p-6"
     >
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-5 flex items-start justify-between gap-3 border-b border-slate-700/60 pb-5">
         <div>
           <h2 className="text-xl font-semibold text-white mb-1">
             Procura Francesca
@@ -718,9 +746,16 @@ export function ProcuraForm({
                 className="mx-auto h-52 w-52 rounded-lg bg-white p-2"
               />
               <p className="mt-3 text-sm font-medium text-white">Scansiona con il telefono</p>
-              <p className="mt-1 text-xs text-slate-400">
-                Il QR è valido una sola volta per 10 minuti.
-              </p>
+              <div
+                role="status"
+                className="mx-auto mt-3 flex max-w-sm items-center justify-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5"
+              >
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
+                <p className="text-xs font-medium text-emerald-100">
+                  Acquisizione in corso sul telefono. La foto apparirà qui automaticamente.
+                </p>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">Il QR è valido una sola volta per 10 minuti.</p>
               {(captureSession.captureUrl.includes("localhost") ||
                 captureSession.captureUrl.includes("127.0.0.1")) && (
                 <p className="mt-2 text-xs text-amber-300">
@@ -810,7 +845,7 @@ export function ProcuraForm({
         )}
 
         {/* Nome e Cognome */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <label className="block text-sm font-medium text-slate-300">
@@ -854,7 +889,7 @@ export function ProcuraForm({
         </div>
 
         {/* Data e Luogo di Nascita */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
               Data di nascita <span className="text-red-400">*</span>
@@ -1112,7 +1147,16 @@ export function ProcuraForm({
                 className="mx-auto h-52 w-52 rounded-lg bg-white p-2"
               />
               <p className="mt-3 text-sm font-medium text-white">Scansiona per firmare</p>
-              <p className="mt-1 text-xs text-slate-400">In attesa della firma · valido 10 minuti</p>
+              <div
+                role="status"
+                className="mx-auto mt-3 flex max-w-sm items-center justify-center gap-2 rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2.5"
+              >
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400" />
+                <p className="text-xs font-medium text-violet-100">
+                  Firma in corso sul telefono. Apparirà qui automaticamente.
+                </p>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">Link monouso · valido per 10 minuti</p>
               <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900 p-2 text-left">
                 <p className="break-all text-[11px] text-slate-400">
                   {signatureSession.captureUrl}
@@ -1192,7 +1236,7 @@ export function ProcuraForm({
         >
           PEC
         </motion.button>
-        <div className="pt-4 space-y-3">
+        <div className="sticky bottom-3 z-20 -mx-2 space-y-2 rounded-xl border border-slate-600/70 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-2 sm:space-y-0">
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}

@@ -73,7 +73,7 @@ export function ResultsPanel({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: 30 }}
         transition={{ duration: 0.5 }}
-        className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl space-y-6"
+        className="bg-slate-800/65 backdrop-blur-sm rounded-2xl border border-slate-700/60 p-4 shadow-xl space-y-6 sm:p-6 xl:sticky xl:top-20"
       >
         {/* Header */}
         <div className="flex items-center justify-between">

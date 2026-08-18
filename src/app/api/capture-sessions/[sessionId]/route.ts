@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import {
-  consumeCapturedFile,
+  canRetrieveCapture,
+  deleteCaptureSession,
+  getCaptureFileMetadata,
   getCaptureSession,
   saveCapturedFile,
 } from "@/lib/captureSessions";
@@ -11,23 +13,30 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 interface RouteContext {
-  params: { sessionId: string };
+  params: Promise<{ sessionId: string }>;
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
-  const session = await getCaptureSession(params.sessionId);
+export async function GET(request: Request, { params }: RouteContext) {
+  const { sessionId } = await params;
+  const session = await getCaptureSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: "Sessione scaduta." }, { status: 404 });
   }
 
-  if (!session.file) return NextResponse.json({ status: "pending" });
+  const metadata = getCaptureFileMetadata(session);
+  if (!metadata) return NextResponse.json({ status: "pending" });
 
-  const file = await consumeCapturedFile(params.sessionId);
-  return NextResponse.json({ status: "ready", file });
+  const retrievalToken = new URL(request.url).searchParams.get("retrievalToken");
+  if (!canRetrieveCapture(session, retrievalToken)) {
+    return NextResponse.json({ error: "Accesso non autorizzato." }, { status: 403 });
+  }
+  const fileUrl = `/api/capture-sessions/${sessionId}/file?retrievalToken=${encodeURIComponent(retrievalToken!)}`;
+  return NextResponse.json({ status: "ready", file: { ...metadata, url: fileUrl } });
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
-  const session = await getCaptureSession(params.sessionId);
+  const { sessionId } = await params;
+  const session = await getCaptureSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: "Sessione scaduta." }, { status: 404 });
   }
@@ -47,11 +56,20 @@ export async function POST(request: Request, { params }: RouteContext) {
   const normalizedFile = new File([file], file.name || `foto-${Date.now()}.jpg`, {
     type: file.type,
   });
-  const saved = await saveCapturedFile(params.sessionId, normalizedFile);
+  const saved = await saveCapturedFile(sessionId, normalizedFile);
 
   if (!saved) {
     return NextResponse.json({ error: "Una foto è già stata inviata." }, { status: 409 });
   }
 
+  return NextResponse.json({ success: true });
+}
+
+export async function DELETE(request: Request, { params }: RouteContext) {
+  const { sessionId } = await params;
+  const retrievalToken = new URL(request.url).searchParams.get("retrievalToken");
+  if (!(await deleteCaptureSession(sessionId, retrievalToken))) {
+    return NextResponse.json({ error: "Accesso non autorizzato." }, { status: 403 });
+  }
   return NextResponse.json({ success: true });
 }

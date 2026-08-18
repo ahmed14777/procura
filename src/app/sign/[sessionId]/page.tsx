@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 
-export default function SignaturePage({ params }: { params: { sessionId: string } }) {
+export default function SignaturePage() {
+  const { sessionId } = useParams<{ sessionId: string }>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [clientName, setClientName] = useState("");
@@ -14,7 +16,13 @@ export default function SignaturePage({ params }: { params: { sessionId: string 
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/signature-sessions/${params.sessionId}`, { cache: "no-store" })
+    if (!sent) return;
+    const timeout = window.setTimeout(() => window.close(), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [sent]);
+
+  useEffect(() => {
+    fetch(`/api/signature-sessions/${sessionId}`, { cache: "no-store" })
       .then(async (response) => {
         const result = (await response.json()) as { clientName?: string; error?: string };
         if (!response.ok) {
@@ -24,7 +32,7 @@ export default function SignaturePage({ params }: { params: { sessionId: string 
         setClientName(result.clientName || "");
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Sessione non disponibile."));
-  }, [params.sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -84,7 +92,7 @@ export default function SignaturePage({ params }: { params: { sessionId: string 
     setIsSending(true);
     setMessage(null);
     try {
-      const response = await fetch(`/api/signature-sessions/${params.sessionId}`, {
+      const response = await fetch(`/api/signature-sessions/${sessionId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ signature: canvas.toDataURL("image/png"), accepted }),
@@ -105,7 +113,16 @@ export default function SignaturePage({ params }: { params: { sessionId: string 
         <div className="max-w-sm rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-8 text-white">
           <div className="mb-4 text-5xl">✓</div>
           <h1 className="text-xl font-semibold">Firma inviata</h1>
-          <p className="mt-2 text-sm text-slate-300">Puoi tornare al computer.</p>
+          <p className="mt-2 text-sm text-slate-300">
+            La pagina si chiuderà automaticamente. Se resta aperta, puoi chiuderla e tornare al computer.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.close()}
+            className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white"
+          >
+            Chiudi pagina
+          </button>
         </div>
       </main>
     );
@@ -139,7 +156,7 @@ export default function SignaturePage({ params }: { params: { sessionId: string 
               <p className="mt-1 text-xs text-slate-400">Scorri il documento prima di firmare.</p>
             </div>
             <a
-              href={`/api/signature-sessions/${params.sessionId}/document`}
+              href={`/api/signature-sessions/${sessionId}/document`}
               target="_blank"
               rel="noreferrer"
               className="shrink-0 rounded-lg border border-sky-400/40 px-3 py-2 text-xs font-medium text-sky-200"
@@ -148,7 +165,7 @@ export default function SignaturePage({ params }: { params: { sessionId: string 
             </a>
           </div>
           <iframe
-            src={`/api/signature-sessions/${params.sessionId}/document`}
+            src={`/api/signature-sessions/${sessionId}/document`}
             title="Procura da leggere e firmare"
             className="h-[58vh] min-h-[430px] w-full bg-white"
           />

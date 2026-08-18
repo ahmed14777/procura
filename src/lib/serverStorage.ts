@@ -8,6 +8,10 @@ export function hasRemoteStorage() {
   );
 }
 
+export function hasRedis() {
+  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+}
+
 let redisClient: Redis | null = null;
 
 export function getRedis() {
