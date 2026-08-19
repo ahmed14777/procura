@@ -85,6 +85,8 @@ export function ProcuraForm({
   isLoading,
 }: ProcuraFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionMessage, setExtractionMessage] = useState<{
     type: "success" | "error";
@@ -112,6 +114,14 @@ export function ProcuraForm({
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
+
+  useEffect(() => {
+    const userAgent = navigator.userAgent;
+    const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);
+    const touchDevice = navigator.maxTouchPoints > 1;
+    const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    setIsMobileDevice(mobileUserAgent || (touchDevice && coarsePointer));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -144,6 +154,7 @@ export function ProcuraForm({
     setExtractedDataConfirmed(true);
     setCopiedField(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
     onNewPractice();
   };
 
@@ -242,6 +253,7 @@ export function ProcuraForm({
     } finally {
       setIsExtracting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   };
 
@@ -717,14 +729,31 @@ export function ProcuraForm({
                   className="sr-only"
                 />
               </label>
-              <button
-                type="button"
-                onClick={createPhoneCaptureSession}
-                disabled={isCreatingCaptureSession || isExtracting}
-                className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-wait disabled:opacity-60"
-              >
-                {isCreatingCaptureSession ? "Creazione QR..." : "Scatta con telefono"}
-              </button>
+              {isMobileDevice ? (
+                <label
+                  className={`inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 ${isExtracting ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  {isExtracting ? "Analisi in corso..." : "Apri fotocamera"}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleDocumentUpload}
+                    disabled={isExtracting}
+                    className="sr-only"
+                  />
+                </label>
+              ) : (
+                <button
+                  type="button"
+                  onClick={createPhoneCaptureSession}
+                  disabled={isCreatingCaptureSession || isExtracting}
+                  className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isCreatingCaptureSession ? "Creazione QR..." : "Scatta con telefono"}
+                </button>
+              )}
             </div>
           </div>
           {extractionMessage && (

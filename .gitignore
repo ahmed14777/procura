@@ -39,3 +39,6 @@ next-env.d.ts
 .vscode
 *.swp
 *.swo
+
+# Local-only Chrome extension (contains the private CAF integration).
+/easy2do-caf-extension/
