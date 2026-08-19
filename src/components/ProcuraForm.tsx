@@ -9,6 +9,7 @@ import {
 import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
 import { downloadImageAsPdf } from "@/lib/imageToPdf";
 import { generateProcuraPdf } from "@/lib/pdfGenerator";
+import { isCodiceFiscaleFormallyValid, normalizeCodiceFiscale } from "@/lib/codiceFiscale";
 import QRCode from "qrcode";
 
 interface ProcuraFormProps {
@@ -109,6 +110,12 @@ export function ProcuraForm({
   const [signatureLinkCopied, setSignatureLinkCopied] = useState(false);
   const [aiFilledFields, setAiFilledFields] = useState<ExtractableField[]>([]);
   const [extractedDataConfirmed, setExtractedDataConfirmed] = useState(true);
+  const [fiscalCodeGender, setFiscalCodeGender] = useState<"" | "M" | "F">("");
+  const [isCalculatingFiscalCode, setIsCalculatingFiscalCode] = useState(false);
+  const [fiscalCodeMessage, setFiscalCodeMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   // Form state
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -152,6 +159,8 @@ export function ProcuraForm({
     setSignatureLinkCopied(false);
     setAiFilledFields([]);
     setExtractedDataConfirmed(true);
+    setFiscalCodeGender("");
+    setFiscalCodeMessage(null);
     setCopiedField(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -260,6 +269,54 @@ export function ProcuraForm({
   const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) await processDocument(file);
+  };
+
+  const calculateFiscalCode = async () => {
+    if (!formData.nome.trim() || !formData.cognome.trim() || !formData.dataNascita || !formData.luogoNascita.trim() || !fiscalCodeGender) {
+      setFiscalCodeMessage({
+        type: "error",
+        text: "Completa nome, cognome, data, luogo di nascita e seleziona il sesso.",
+      });
+      return;
+    }
+
+    setIsCalculatingFiscalCode(true);
+    setFiscalCodeMessage(null);
+    try {
+      const response = await fetch("/api/codice-fiscale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: formData.nome,
+          cognome: formData.cognome,
+          dataNascita: formData.dataNascita,
+          luogoNascita: formData.luogoNascita,
+          sesso: fiscalCodeGender,
+        }),
+      });
+      const result = (await response.json()) as { codiceFiscale?: string; error?: string };
+      if (!response.ok || !result.codiceFiscale) {
+        throw new Error(result.error || "Calcolo non riuscito.");
+      }
+      const current = normalizeCodiceFiscale(formData.codiceFiscale);
+      if (current && current !== result.codiceFiscale && !window.confirm("Sostituire il codice fiscale già inserito con quello calcolato?")) {
+        return;
+      }
+      setFormData((previous) => ({ ...previous, codiceFiscale: result.codiceFiscale! }));
+      setErrors((previous) => ({ ...previous, codiceFiscale: undefined }));
+      setTouched((previous) => ({ ...previous, codiceFiscale: true }));
+      setFiscalCodeMessage({
+        type: "success",
+        text: "Codice calcolato. Confrontalo sempre con quello rilasciato dall’Agenzia delle Entrate.",
+      });
+    } catch (error) {
+      setFiscalCodeMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Calcolo non riuscito.",
+      });
+    } finally {
+      setIsCalculatingFiscalCode(false);
+    }
   };
 
   const createPhoneCaptureSession = async () => {
@@ -525,10 +582,7 @@ export function ProcuraForm({
         break;
       case "codiceFiscale":
         if (!value.trim()) return "Il codice fiscale è obbligatorio";
-
-        // if (!/^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/i.test(value)) {
-        //   return "Il codice fiscale non è valido";
-        // }
+        if (!isCodiceFiscaleFormallyValid(value)) return "Il codice fiscale non è formalmente valido";
         break;
       case "sedeSelezionata":
         if (!value) return "La sede è obbligatoria";
@@ -956,9 +1010,14 @@ export function ProcuraForm({
 
         {/* Codice Fiscale */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">
-            Codice Fiscale <span className="text-red-400">*</span>
-          </label>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <label className="block text-sm font-medium text-slate-300">
+              Codice Fiscale <span className="text-red-400">*</span>
+            </label>
+            {formData.codiceFiscale.length === 16 && isCodiceFiscaleFormallyValid(formData.codiceFiscale) && (
+              <span className="text-xs font-medium text-emerald-300">Formalmente valido ✓</span>
+            )}
+          </div>
           <input
             type="text"
             name="codiceFiscale"
@@ -971,6 +1030,31 @@ export function ProcuraForm({
           />
           {errors.codiceFiscale && touched.codiceFiscale && (
             <p className="mt-1 text-xs text-red-400">{errors.codiceFiscale}</p>
+          )}
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[160px_1fr]">
+            <select
+              value={fiscalCodeGender}
+              onChange={(event) => setFiscalCodeGender(event.target.value as "" | "M" | "F")}
+              aria-label="Sesso per il calcolo del codice fiscale"
+              className="min-h-11 rounded-xl border border-slate-600/60 bg-slate-800 px-3 text-sm text-slate-200 outline-none focus:border-sky-400"
+            >
+              <option value="">Sesso per calcolo</option>
+              <option value="M">Maschio</option>
+              <option value="F">Femmina</option>
+            </select>
+            <button
+              type="button"
+              onClick={calculateFiscalCode}
+              disabled={isCalculatingFiscalCode}
+              className="min-h-11 rounded-xl border border-sky-400/40 bg-sky-500/10 px-4 text-sm font-medium text-sky-200 transition hover:bg-sky-500/20 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isCalculatingFiscalCode ? "Calcolo in corso..." : "Calcola codice fiscale"}
+            </button>
+          </div>
+          {fiscalCodeMessage && (
+            <p className={`mt-2 text-xs ${fiscalCodeMessage.type === "success" ? "text-emerald-300" : "text-red-300"}`}>
+              {fiscalCodeMessage.text}
+            </p>
           )}
         </div>
         {/* Telefono */}

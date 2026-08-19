@@ -6,6 +6,7 @@ function isProtectedRequest(request: NextRequest) {
   if (pathname.startsWith("/api/")) {
     return (
       pathname === "/api/extract-document" ||
+      pathname === "/api/codice-fiscale" ||
       (request.method === "POST" &&
         (pathname === "/api/capture-sessions" || pathname === "/api/signature-sessions"))
     );
