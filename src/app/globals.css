@@ -6,6 +6,9 @@
 :root {
   --font-dm-sans: 'DM Sans', system-ui, sans-serif;
   --font-cormorant: 'Cormorant Garamond', Georgia, serif;
+  --cream: #fbf2e4;
+  --orange: #d58e44;
+  --orange-light: #f0c888;
 }
 
 /* Base styles */
@@ -41,12 +44,12 @@ body {
 
 /* Focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid #fbbf24;
+  outline: 2px solid #2f4f75;
   outline-offset: 2px;
 }
 
 /* Input date icon color fix for dark theme */
-input[type="date"]::-webkit-calendar-picker-indicator {
+input[type='date']::-webkit-calendar-picker-indicator {
   filter: invert(0.8);
   cursor: pointer;
 }
@@ -75,16 +78,26 @@ select optgroup {
   font-weight: 600;
 }
 
+.contribution-input {
+  -moz-appearance: textfield;
+}
+
+.contribution-input::-webkit-inner-spin-button,
+.contribution-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
 /* Animation utilities */
 @layer utilities {
   .animate-in {
     animation: fadeIn 0.5s ease-out forwards;
   }
-  
+
   .slide-in-left {
     animation: slideInLeft 0.5s ease-out forwards;
   }
-  
+
   .slide-in-right {
     animation: slideInRight 0.5s ease-out forwards;
   }
@@ -145,15 +158,54 @@ select optgroup {
 .gradient-subtle {
   background: linear-gradient(
     135deg,
-    rgba(251, 191, 36, 0.05) 0%,
+    rgba(47, 79, 117, 0.08) 0%,
     transparent 50%,
-    rgba(59, 130, 246, 0.05) 100%
+    rgba(88, 115, 146, 0.08) 100%
   );
 }
 
 /* Button hover glow effect */
 .btn-glow:hover {
   box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+}
+
+/* Client form interactive magic */
+.client-field {
+  transition:
+    border-color 180ms ease,
+    box-shadow 220ms ease,
+    transform 180ms ease;
+}
+
+.client-field:hover {
+  border-color: rgba(25, 53, 86, 0.38);
+}
+
+.client-field-filled {
+  border-color: rgba(251, 191, 36, 0.62) !important;
+  background-color: rgba(15, 23, 42, 0.84);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.2),
+    0 8px 20px rgba(2, 6, 23, 0.35);
+}
+
+.field-error-attention {
+  animation: fieldErrorAttention 900ms ease-in-out;
+}
+
+@keyframes fieldErrorAttention {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
 }
 
 /* Loading spinner */
@@ -167,5 +219,19 @@ select optgroup {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes fieldMagicPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(25, 53, 86, 0.12),
+      0 10px 22px rgba(25, 53, 86, 0.16);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(25, 53, 86, 0.2),
+      0 14px 28px rgba(32, 73, 116, 0.24);
   }
 }

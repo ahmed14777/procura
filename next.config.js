@@ -2,10 +2,10 @@
 const nextConfig = {
   // Keep the default Next.js server output so API routes can process uploads.
   serverExternalPackages: ["@vercel/blob", "undici"],
-  turbopack: {
+  /* turbopack: {
     root: __dirname
   },
-  images: {
+  */ images: {
     unoptimized: true
   }
 };

@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
+import { CodiceFiscaleUtils } from '@marketto/codice-fiscale-utils'
+import belfioreConnector from '@marketto/belfiore-connector-embedded'
+import { isCodiceFiscaleFormallyValid } from '@/lib/codiceFiscale'
 
 export const runtime = 'nodejs'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+const codiceFiscaleUtils = new CodiceFiscaleUtils(belfioreConnector)
 
 const extractionSchema = {
   type: 'object',
@@ -58,6 +62,35 @@ function normalizeVestanet(value: unknown) {
   if (afterId) return `${afterId[1]}${afterId[2]}`
   const code = normalized.match(/\b([A-Z]{2})[\s-]*(\d+)\b/)
   return code ? `${code[1]}${code[2]}` : ''
+}
+
+async function normalizeBirthCountry(extracted: Record<string, unknown>) {
+  const currentPlace =
+    typeof extracted.luogoNascita === 'string' ? extracted.luogoNascita.trim() : ''
+  const codiceFiscale =
+    typeof extracted.codiceFiscale === 'string' ? extracted.codiceFiscale.trim().toUpperCase() : ''
+
+  if (codiceFiscale && isCodiceFiscaleFormallyValid(codiceFiscale)) {
+    const birthPlace = await codiceFiscaleUtils.parser.cfToBirthPlace(codiceFiscale)
+    if (birthPlace?.iso3166) return birthPlace.name
+    if (birthPlace?.province) return 'Italia'
+  }
+
+  if (currentPlace) {
+    const parsedPlace = await codiceFiscaleUtils.parser.parsePlace(currentPlace)
+    if (parsedPlace?.iso3166) return parsedPlace.name
+    if (parsedPlace?.province) return 'Italia'
+
+    if (currentPlace.includes(',')) {
+      const parts = currentPlace
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+      if (parts.length > 1) return parts[parts.length - 1]
+    }
+  }
+
+  return currentPlace
 }
 
 export async function POST(request: Request) {
@@ -121,6 +154,11 @@ For nome and cognome, first use explicit document labels and machine-readable da
 
 Normalize birth date to YYYY-MM-DD and codice fiscale to uppercase.
 
+For luogoNascita return the COUNTRY only (not city):
+- If the document shows a city in Italy, return "Italia".
+- If the document shows a foreign city/country, return the country name only (for example "Marocco", "Egitto", "Pakistan").
+- If codice fiscale is visible and reliable, use its birth-place code to infer the country.
+
 IMPORTANT — search the entire document specifically for numeroVestanet even when the document contains many other fields. It is commonly printed with the label "ID", followed by a space and then a code made of exactly two letters plus digits. "ID" is the field label, not part of the value. Examples:
 - Printed "ID MI876365" → return numeroVestanet "MI876365"
 - Printed "ID: RM 123456" → return numeroVestanet "RM123456"
@@ -159,6 +197,7 @@ Never return only the digits and never return the leading label ID. Do not confu
 
     const extracted = JSON.parse(outputText) as Record<string, unknown>
     extracted.numeroVestanet = normalizeVestanet(extracted.numeroVestanet)
+    extracted.luogoNascita = await normalizeBirthCountry(extracted)
     return NextResponse.json({ data: extracted })
   } catch (error) {
     console.error('Document extraction error', error)
