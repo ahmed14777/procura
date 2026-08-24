@@ -1,4 +1,6 @@
-import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
+import type { ProcuraFormData, TipoRichiesta } from '@/lib/schema'
+import { LAWYER_PROFILE } from '@/config/business'
+import { EMAIL_GENERATOR_COPY } from '@/config/content'
 
 /**
  * Email Generator Module
@@ -13,34 +15,25 @@ import type { ProcuraFormData, TipoRichiesta } from "@/lib/schema";
  * - Focused on getting a fast reply
  */
 function capitalizeFirst(value: string): string {
-  if (!value) return "";
-  const v = value.trim();
-  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+  if (!value) return ''
+  const v = value.trim()
+  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()
 }
 export interface GeneratedEmail {
-  subject: string;
-  body: string;
+  subject: string
+  body: string
 }
 
 /**
  * Request type labels in Italian
  */
-const TIPO_RICHIESTA_LABELS: Record<TipoRichiesta, string> = {
-  asilo:
-    "Istanza di accesso agli atti e richiesta di aggiornamento sullo stato del procedimento ",
-  accesso: "Istanza di accesso agli atti",
-};
+const TIPO_RICHIESTA_LABELS: Record<TipoRichiesta, string> = EMAIL_GENERATOR_COPY.requestTypeLabels
 
 /**
  * Legal references by request type
  * Note: We use only generic references without article/law numbers
  */
-const RIFERIMENTI_NORMATIVI: Record<TipoRichiesta, string> = {
-  asilo:
-    "ai sensi della normativa vigente in materia di protezione internazionale",
-  accesso:
-    "ai sensi della normativa vigente in materia di accesso agli atti amministrativi",
-};
+const RIFERIMENTI_NORMATIVI: Record<TipoRichiesta, string> = EMAIL_GENERATOR_COPY.legalReferences
 
 /**
  * Generates the email subject line
@@ -50,17 +43,17 @@ const RIFERIMENTI_NORMATIVI: Record<TipoRichiesta, string> = {
  * @returns Formatted subject line
  */
 export function generateSubject(data: ProcuraFormData): string {
-  const tipoLabel = TIPO_RICHIESTA_LABELS[data.tipoRichiesta];
-  const nomeCompleto = `${capitalizeFirst(data.nome)} ${capitalizeFirst(data.cognome)}`;
+  const tipoLabel = TIPO_RICHIESTA_LABELS[data.tipoRichiesta]
+  const nomeCompleto = `${capitalizeFirst(data.nome)} ${capitalizeFirst(data.cognome)}`
 
-  let subject = `${tipoLabel} – ${nomeCompleto}`;
+  let subject = `${tipoLabel} – ${nomeCompleto}`
 
   // Add Vestanet number if present
-  if (data.numeroVestanet && data.numeroVestanet.trim() !== "") {
-    subject += ` – pratica VESTANET n. ${data.numeroVestanet}`;
+  if (data.numeroVestanet && data.numeroVestanet.trim() !== '') {
+    subject += ` – pratica VESTANET n. ${data.numeroVestanet}`
   }
 
-  return subject;
+  return subject
 }
 
 /**
@@ -71,64 +64,47 @@ export function generateSubject(data: ProcuraFormData): string {
  * @param commissione - The competent commission name
  * @returns Formatted email body
  */
-export function generateBody(
-  data: ProcuraFormData,
-  commissione: string,
-): string {
-  const nomeCompleto = `${capitalizeFirst(data.nome)} ${capitalizeFirst(data.cognome)}`;
-  const riferimento = RIFERIMENTI_NORMATIVI[data.tipoRichiesta];
+export function generateBody(data: ProcuraFormData, commissione: string): string {
+  const nomeCompleto = `${capitalizeFirst(data.nome)} ${capitalizeFirst(data.cognome)}`
+  const riferimento = RIFERIMENTI_NORMATIVI[data.tipoRichiesta]
 
   const lines: string[] = [
     `Alla Commissione Territoriale di ${commissione}`,
-    "",
-    `La sottoscritta Avv. Francesca Guicciardini, del Foro di Milano,`,
+    '',
+    `La sottoscritta ${LAWYER_PROFILE.fullName}, del Foro di ${LAWYER_PROFILE.barAssociation},`,
     `in qualità di difensore del Sig./della Sig.ra ${nomeCompleto},`,
-    `nato/a a ${data.luogoNascita} il ${formatDate(data.dataNascita)}${data.codiceFiscale ? `, C.F. ${data.codiceFiscale.toUpperCase()}` : ""},`,
+    `nato/a a ${data.luogoNascita} il ${formatDate(data.dataNascita)}${data.codiceFiscale ? `, C.F. ${data.codiceFiscale.toUpperCase()}` : ''},`,
     `giusta procura alle liti regolarmente conferita ed allegata alla presente,`,
-  ];
+  ]
 
   if (data.numeroVestanet?.trim()) {
-    lines.push(
-      `con riferimento alla posizione VESTANET n. ${data.numeroVestanet},`,
-    );
+    lines.push(`con riferimento alla posizione VESTANET n. ${data.numeroVestanet},`)
   }
 
-  lines.push("", ` ${riferimento},`, "");
+  lines.push('', ` ${riferimento},`, '')
 
-  if (data.tipoRichiesta === "asilo") {
-    lines.push(
-      "CHIEDE",
-      "",
-      "di voler fornire formale riscontro in ordine allo stato del procedimento di protezione internazionale,",
-      "con specifico riferimento all’eventuale fissazione della convocazione",
-      "ovvero all’adozione del relativo provvedimento conclusivo.",
-    );
+  if (data.tipoRichiesta === 'asilo') {
+    lines.push(...EMAIL_GENERATOR_COPY.askClauseAsilo)
   } else {
-    lines.push(
-      "CHIEDE",
-      "",
-      "di voler consentire l’accesso e il rilascio di copia integrale del fascicolo amministrativo",
-      "relativo al procedimento in oggetto, ai sensi della normativa vigente.",
-    );
+    lines.push(...EMAIL_GENERATOR_COPY.askClauseAccesso)
   }
 
   lines.push(
-    "",
-    "Si richiede che ogni comunicazione inerente al procedimento sia trasmessa",
-    "a mezzo PEC all’indirizzo francesca.guicciardini@pec.it",
-    "nonché mediante raccomandata A/R presso lo studio in Milano, Via Mario Pieri n. 2.",
-    "",
-    "Si allegano:",
-    "- Procura alle liti;",
-    "- Documento di identità del/la richiedente.",
-    "",
-    "Distinti saluti.",
-    "",
-    "Avv. Francesca Guicciardini",
-    "Foro di Milano",
-  );
+    '',
+    'Si richiede che ogni comunicazione inerente al procedimento sia trasmessa',
+    `a mezzo PEC all’indirizzo ${LAWYER_PROFILE.pec}`,
+    `nonché mediante raccomandata A/R presso lo studio in ${LAWYER_PROFILE.officeAddressLong}.`,
+    '',
+    'Si allegano:',
+    ...EMAIL_GENERATOR_COPY.attachments,
+    '',
+    'Distinti saluti.',
+    '',
+    LAWYER_PROFILE.fullName,
+    `Foro di ${LAWYER_PROFILE.barAssociation}`
+  )
 
-  return lines.join("\n");
+  return lines.join('\n')
 }
 
 /**
@@ -138,20 +114,17 @@ export function generateBody(
  * @param commissione - The competent commission name
  * @returns Object with subject and body
  */
-export function generateEmail(
-  data: ProcuraFormData,
-  commissione: string,
-): GeneratedEmail {
+export function generateEmail(data: ProcuraFormData, commissione: string): GeneratedEmail {
   return {
     subject: generateSubject(data),
     body: generateBody(data, commissione),
-  };
+  }
 }
 
 /**
  * Formats a date string (YYYY-MM-DD) to Italian format (DD/MM/YYYY)
  */
 function formatDate(dateString: string): string {
-  const [year, month, day] = dateString.split("-");
-  return `${day}/${month}/${year}`;
+  const [year, month, day] = dateString.split('-')
+  return `${day}/${month}/${year}`
 }

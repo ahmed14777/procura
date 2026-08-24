@@ -13,6 +13,7 @@ interface SignatureSession {
   clientName: string
   expiresAt: number
   retrievalTokenHash: string
+  submitTokenHash: string
   document?: Buffer
   documentUrl?: string
   signature?: string
@@ -32,8 +33,14 @@ export async function createSignatureSession(clientName: string, document: File)
   await cleanupExpiredBlobs()
   const id = randomBytes(24).toString('base64url')
   const retrievalToken = randomBytes(24).toString('base64url')
+  const submitToken = randomBytes(24).toString('base64url')
   const expiresAt = Date.now() + SESSION_LIFETIME_SECONDS * 1000
-  const baseSession = { clientName, expiresAt, retrievalTokenHash: hashToken(retrievalToken) }
+  const baseSession = {
+    clientName,
+    expiresAt,
+    retrievalTokenHash: hashToken(retrievalToken),
+    submitTokenHash: hashToken(submitToken),
+  }
 
   if (hasRemoteStorage()) {
     const blob = await put(`signature/${id}/procura.pdf`, document, {
@@ -55,7 +62,7 @@ export async function createSignatureSession(clientName: string, document: File)
       document: Buffer.from(await document.arrayBuffer()),
     })
   }
-  return { id, expiresAt, retrievalToken }
+  return { id, expiresAt, retrievalToken, submitToken }
 }
 
 export async function getSignatureSession(id: string) {
@@ -86,6 +93,13 @@ export async function saveSignature(id: string, signature: string) {
     session.signature = signature
   }
   return true
+}
+
+export function canSubmitSignature(
+  session: { submitTokenHash: string },
+  submitToken: string | null
+) {
+  return Boolean(submitToken && hashToken(submitToken) === session.submitTokenHash)
 }
 
 export async function consumeSignature(id: string, retrievalToken: string | null) {

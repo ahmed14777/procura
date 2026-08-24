@@ -11,6 +11,9 @@ import type { ProcuraFormData, TipoRichiesta } from '@/lib/schema'
 import { downloadImageAsPdf } from '@/lib/imageToPdf'
 import { generateProcuraPdf } from '@/lib/pdfGenerator'
 import { isCodiceFiscaleFormallyValid, normalizeCodiceFiscale } from '@/lib/codiceFiscale'
+import { PUBLIC_ERROR_MESSAGE } from '@/lib/security'
+import { LAWYER_OFFICE_LOCATIONS } from '@/config/business'
+import { LAWYER_FOLLOW_UP_COPY } from '@/config/content'
 import QRCode from 'qrcode'
 
 interface ProcuraFormProps {
@@ -380,9 +383,10 @@ export function ProcuraForm({
       setSourceDocument(file)
       if (isClientRole) setClientStep(2)
     } catch (error) {
+      console.error('Document processing error:', error)
       setExtractionMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : "Errore durante l'analisi.",
+        text: PUBLIC_ERROR_MESSAGE,
       })
     } finally {
       setIsExtracting(false)
@@ -445,9 +449,10 @@ export function ProcuraForm({
         text: 'Codice calcolato. Confrontalo sempre con quello rilasciato dall’Agenzia delle Entrate.',
       })
     } catch (error) {
+      console.error('Fiscal code calculation error:', error)
       setFiscalCodeMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Calcolo non riuscito.',
+        text: PUBLIC_ERROR_MESSAGE,
       })
     } finally {
       setIsCalculatingFiscalCode(false)
@@ -462,13 +467,14 @@ export function ProcuraForm({
       const result = (await response.json()) as {
         id?: string
         retrievalToken?: string
+        submitToken?: string
         error?: string
       }
-      if (!response.ok || !result.id || !result.retrievalToken) {
+      if (!response.ok || !result.id || !result.retrievalToken || !result.submitToken) {
         throw new Error(result.error || 'Sessione non disponibile.')
       }
 
-      const captureUrl = `${window.location.origin}/capture/${result.id}`
+      const captureUrl = `${window.location.origin}/capture/${result.id}#st=${encodeURIComponent(result.submitToken)}`
       const qrCode = await QRCode.toDataURL(captureUrl, {
         width: 240,
         margin: 1,
@@ -481,9 +487,10 @@ export function ProcuraForm({
         retrievalToken: result.retrievalToken,
       })
     } catch (error) {
+      console.error('Capture session creation error:', error)
       setExtractionMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Impossibile creare il QR.',
+        text: PUBLIC_ERROR_MESSAGE,
       })
     } finally {
       setIsCreatingCaptureSession(false)
@@ -531,8 +538,9 @@ export function ProcuraForm({
           )
         }
       } catch (error) {
-        if (!stopped && error instanceof Error) {
-          setExtractionMessage({ type: 'error', text: error.message })
+        if (!stopped) {
+          console.error('Capture polling error:', error)
+          setExtractionMessage({ type: 'error', text: PUBLIC_ERROR_MESSAGE })
         }
       }
     }
@@ -570,13 +578,14 @@ export function ProcuraForm({
       const result = (await response.json()) as {
         id?: string
         retrievalToken?: string
+        submitToken?: string
         error?: string
       }
-      if (!response.ok || !result.id || !result.retrievalToken) {
+      if (!response.ok || !result.id || !result.retrievalToken || !result.submitToken) {
         throw new Error(result.error || 'Sessione firma non disponibile.')
       }
 
-      const captureUrl = `${window.location.origin}/sign/${result.id}`
+      const captureUrl = `${window.location.origin}/sign/${result.id}#st=${encodeURIComponent(result.submitToken)}`
       const qrCode = await QRCode.toDataURL(captureUrl, {
         width: 240,
         margin: 1,
@@ -591,9 +600,10 @@ export function ProcuraForm({
         retrievalToken: result.retrievalToken,
       })
     } catch (error) {
+      console.error('Signature session creation error:', error)
       setExtractionMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Impossibile creare il QR firma.',
+        text: PUBLIC_ERROR_MESSAGE,
       })
     } finally {
       setIsCreatingSignatureSession(false)
@@ -641,8 +651,9 @@ export function ProcuraForm({
           )
         }
       } catch (error) {
-        if (!stopped && error instanceof Error) {
-          setExtractionMessage({ type: 'error', text: error.message })
+        if (!stopped) {
+          console.error('Signature polling error:', error)
+          setExtractionMessage({ type: 'error', text: PUBLIC_ERROR_MESSAGE })
         }
       }
     }
@@ -1130,9 +1141,11 @@ export function ProcuraForm({
                         </svg>
                       </span>
                       <div>
-                        <p className="text-sm font-semibold">متابعة مع مكتبنا</p>
+                        <p className="text-sm font-semibold">
+                          {LAWYER_FOLLOW_UP_COPY.modalTitleAr}
+                        </p>
                         <p className="text-xs text-white/75">
-                          تواصل معنا بالمكتب مع إمكانية عمل توكيل لمتابعة موعد المحكمة أونلاين.
+                          {LAWYER_FOLLOW_UP_COPY.modalSubtitleAr}
                         </p>
                       </div>
                     </div>
@@ -1152,8 +1165,10 @@ export function ProcuraForm({
                         📍
                       </span>
                       <div className="text-sm text-[#27476f]">
-                        <p className="font-semibold text-[#193556]">ميلانو</p>
-                        <p>Via Padova 267</p>
+                        <p className="font-semibold text-[#193556]">
+                          {LAWYER_OFFICE_LOCATIONS.milano.cityAr}
+                        </p>
+                        <p>{LAWYER_OFFICE_LOCATIONS.milano.address}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 rounded-2xl border border-[#dbe6f2] bg-[#f4f8fd] p-3">
@@ -1161,8 +1176,10 @@ export function ProcuraForm({
                         📍
                       </span>
                       <div className="text-sm text-[#27476f]">
-                        <p className="font-semibold text-[#193556]">بريشيا</p>
-                        <p>Corso Mameli 24</p>
+                        <p className="font-semibold text-[#193556]">
+                          {LAWYER_OFFICE_LOCATIONS.brescia.cityAr}
+                        </p>
+                        <p>{LAWYER_OFFICE_LOCATIONS.brescia.address}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 rounded-2xl border border-[#dbe6f2] bg-[#f4f8fd] p-3">
@@ -1170,16 +1187,20 @@ export function ProcuraForm({
                         🕒
                       </span>
                       <div className="text-sm text-[#27476f]">
-                        <p className="font-semibold text-[#193556]">مواعيد العمل</p>
-                        <p>من ١١ صباحًا حتى ٦ مساءً</p>
-                        <p>السبت والأحد المكتب مفتوح، والإجازة الأسبوعية يوم الجمعة</p>
+                        <p className="font-semibold text-[#193556]">
+                          {LAWYER_FOLLOW_UP_COPY.workingHoursTitleAr}
+                        </p>
+                        <p>{LAWYER_FOLLOW_UP_COPY.workingHoursLine1Ar}</p>
+                        <p>{LAWYER_FOLLOW_UP_COPY.workingHoursLine2Ar}</p>
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-[#dbe6f2] bg-[#f4f8fd] p-3">
-                      <p className="text-sm font-semibold text-[#193556]">خدماتنا أونلاين</p>
+                      <p className="text-sm font-semibold text-[#193556]">
+                        {LAWYER_FOLLOW_UP_COPY.onlineServicesTitleAr}
+                      </p>
                       <p className="mt-1 text-xs text-[#4f6b8b]">
-                        قريبًا: ربط مباشر لخدمات المتابعة وعمل التوكيل أونلاين مع المكتب.
+                        {LAWYER_FOLLOW_UP_COPY.onlineServicesBodyAr}
                       </p>
                       <button
                         type="button"
@@ -1187,7 +1208,7 @@ export function ProcuraForm({
                         aria-disabled="true"
                         className="mt-3 w-full rounded-lg border border-[#1f3b63]/30 bg-[#1f3b63]/10 px-3 py-2 text-sm font-medium text-[#1f3b63] opacity-70"
                       >
-                        الخدمات الأونلاين (قريبًا)
+                        {LAWYER_FOLLOW_UP_COPY.onlineServicesButtonAr}
                       </button>
                     </div>
                   </div>
@@ -1422,9 +1443,19 @@ export function ProcuraForm({
               </div>
             )}
 
-            {isClientRole && aiFilledFields.length > 0 && !extractedDataConfirmed && (
-              <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-3">
-                <p className="text-sm font-medium text-amber-100">
+            {aiFilledFields.length > 0 && !extractedDataConfirmed && (
+              <div
+                className={`rounded-xl border p-3 ${
+                  isClientRole
+                    ? 'border-amber-400/40 bg-amber-400/10'
+                    : 'border-sky-400/40 bg-sky-500/10'
+                }`}
+              >
+                <p
+                  className={`text-sm font-medium ${
+                    isClientRole ? 'text-amber-100' : 'text-sky-100'
+                  }`}
+                >
                   راجع البيانات المستخرجة من المستند
                 </p>
                 <p className="mt-1 text-xs text-slate-300">
@@ -1440,7 +1471,11 @@ export function ProcuraForm({
                       text: 'تم تأكيد صحة البيانات ويمكنك المتابعة.',
                     })
                   }}
-                  className="mt-3 w-full rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                  className={`mt-3 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                    isClientRole
+                      ? 'bg-amber-500 text-slate-950 hover:bg-amber-400'
+                      : 'bg-sky-500/20 text-sky-100 hover:bg-sky-500/30'
+                  }`}
                 >
                   تأكيد صحة البيانات
                 </button>

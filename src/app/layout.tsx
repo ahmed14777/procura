@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
+import { APP_METADATA_COPY } from '@/config/content'
 
 // Primary sans-serif font
 const dmSans = DM_Sans({
@@ -18,10 +19,9 @@ const cormorant = Cormorant_Garamond({
 })
 
 export const metadata: Metadata = {
-  title: 'Easy2Do | Servizio Clienti',
-  description:
-    'Piattaforma per inviare richieste di aggiornamento pratica e gestire il flusso documentale in modo semplice e sicuro.',
-  keywords: ['aggiornamento pratica', 'richiesta cliente', 'easy2do', 'documenti', 'pagamento'],
+  title: APP_METADATA_COPY.title,
+  description: APP_METADATA_COPY.description,
+  keywords: APP_METADATA_COPY.keywords,
   authors: [{ name: 'Ayado' }],
   robots: 'noindex, nofollow', // Internal tool, not for public indexing
 }

@@ -20,6 +20,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  PUBLIC_ERROR_MESSAGE,
+  createSecurityErrorReference,
+  logSecurityError,
+} from '@/lib/security'
+import { consumeRateLimit } from '@/lib/rateLimit'
+import { PROJECT_BRANDING } from '@/config/content'
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 const STRIPE_PRICE_ID_CLIENT = process.env.STRIPE_PRICE_ID_CLIENT
@@ -27,14 +34,11 @@ const STRIPE_FALLBACK_AMOUNT_CENTS = Number.parseInt(
   process.env.STRIPE_FALLBACK_AMOUNT_CENTS || '500',
   10
 )
-const BASE_URL = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : process.env.BASE_URL || 'http://localhost:3000'
-
 interface CheckoutRequest {
   mode: 'client' | 'lawyer'
   customerEmail?: string
   clientName?: string
+  clientPhone?: string
   amountCents?: number
 }
 
@@ -44,13 +48,30 @@ interface StripeCheckoutResponse {
   url?: string
 }
 
+function getCheckoutBaseUrl(request: NextRequest) {
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const host = forwardedHost || request.headers.get('host') || 'localhost:3000'
+  const protocol =
+    request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '')
+
+  if (process.env.NODE_ENV !== 'production') {
+    return `${protocol}://${host}`
+  }
+
+  if (process.env.BASE_URL) return process.env.BASE_URL
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return `${protocol}://${host}`
+}
+
 /**
  * Create Stripe checkout session using direct API call
  */
 async function createStripeCheckoutSession(
   email: string,
   clientName: string,
-  amountCents?: number
+  clientPhone: string,
+  amountCents: number | undefined,
+  baseUrl: string
 ): Promise<StripeCheckoutResponse> {
   if (!STRIPE_SECRET_KEY) {
     throw new Error('STRIPE_SECRET_KEY not configured')
@@ -59,21 +80,22 @@ async function createStripeCheckoutSession(
   const checkoutData = new URLSearchParams({
     mode: 'payment',
     customer_creation: 'always',
-    success_url: `${BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${BASE_URL}/`,
+    success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/`,
     'payment_method_types[0]': 'card',
     'line_items[0][quantity]': '1',
   })
 
   if (email) checkoutData.set('customer_email', email)
   if (clientName) checkoutData.set('client_reference_id', clientName)
+  if (clientPhone) checkoutData.set('metadata[client_phone]', clientPhone)
 
   if (amountCents) {
     checkoutData.set('line_items[0][price_data][currency]', 'eur')
     checkoutData.set('line_items[0][price_data][unit_amount]', String(amountCents))
     checkoutData.set(
       'line_items[0][price_data][product_data][name]',
-      'Contributo volontario Easy2Do'
+      PROJECT_BRANDING.stripeContributionProductName
     )
   } else if (STRIPE_PRICE_ID_CLIENT) {
     checkoutData.set('line_items[0][price]', STRIPE_PRICE_ID_CLIENT)
@@ -120,18 +142,48 @@ async function getStripeSession(sessionId: string) {
     payment_status?: string
     customer_email?: string | null
     customer_details?: { email?: string | null }
+    metadata?: { client_phone?: string }
   }
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimit = await consumeRateLimit({
+    request,
+    bucket: 'stripe-checkout-post',
+    limit: 10,
+    windowSeconds: 10 * 60,
+  })
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: 'Troppe richieste. Riprova tra poco.',
+      },
+      {
+        status: 429,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+        },
+      }
+    )
+  }
+
   try {
     // Validate Stripe configuration
     if (!STRIPE_SECRET_KEY) {
+      const reference = createSecurityErrorReference()
+      logSecurityError(
+        'stripe-checkout:POST:missing-secret',
+        new Error('STRIPE_SECRET_KEY missing'),
+        reference
+      )
       return NextResponse.json(
         {
-          error: "Stripe non configurato. Contatta l'amministratore. (STRIPE_SECRET_KEY mancante)",
+          error: PUBLIC_ERROR_MESSAGE,
+          reference,
         },
-        { status: 500 }
+        { status: 500, headers: { 'Cache-Control': 'no-store' } }
       )
     }
 
@@ -154,9 +206,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (!STRIPE_PRICE_ID_CLIENT && !Number.isFinite(STRIPE_FALLBACK_AMOUNT_CENTS)) {
+      const reference = createSecurityErrorReference()
+      logSecurityError(
+        'stripe-checkout:POST:missing-pricing-config',
+        new Error('Stripe pricing not configured'),
+        reference
+      )
       return NextResponse.json(
-        { error: 'Configura STRIPE_PRICE_ID_CLIENT o STRIPE_FALLBACK_AMOUNT_CENTS.' },
-        { status: 500 }
+        { error: PUBLIC_ERROR_MESSAGE, reference },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } }
       )
     }
 
@@ -164,7 +222,9 @@ export async function POST(request: NextRequest) {
     const session = await createStripeCheckoutSession(
       body.customerEmail || '',
       body.clientName || '',
-      body.amountCents
+      body.clientPhone || '',
+      body.amountCents,
+      getCheckoutBaseUrl(request)
     )
 
     if (!session.url) {
@@ -180,15 +240,17 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Stripe checkout error:', error)
+    const reference = createSecurityErrorReference()
+    logSecurityError('stripe-checkout:POST', error, reference)
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Errore durante la creazione della sessione di pagamento',
+        error: PUBLIC_ERROR_MESSAGE,
+        reference,
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { 'Cache-Control': 'no-store' },
+      }
     )
   }
 }
@@ -197,6 +259,28 @@ export async function POST(request: NextRequest) {
  * GET handler for checking payment status
  */
 export async function GET(request: NextRequest) {
+  const rateLimit = await consumeRateLimit({
+    request,
+    bucket: 'stripe-checkout-get',
+    limit: 30,
+    windowSeconds: 10 * 60,
+  })
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: 'Troppe richieste. Riprova tra poco.',
+      },
+      {
+        status: 429,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+        },
+      }
+    )
+  }
+
   try {
     const sessionId = request.nextUrl.searchParams.get('sessionId')
 
@@ -213,16 +297,22 @@ export async function GET(request: NextRequest) {
         id: sessionId,
         paid: paymentStatus === 'paid',
         customerEmail: session.customer_email || session.customer_details?.email || null,
+        clientPhone: session.metadata?.client_phone || null,
       },
       { status: 200 }
     )
   } catch (error) {
-    console.error('Stripe session check error:', error)
+    const reference = createSecurityErrorReference()
+    logSecurityError('stripe-checkout:GET', error, reference)
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Errore durante la verifica della sessione',
+        error: PUBLIC_ERROR_MESSAGE,
+        reference,
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { 'Cache-Control': 'no-store' },
+      }
     )
   }
 }

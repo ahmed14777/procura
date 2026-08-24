@@ -2,6 +2,7 @@
 import { Document, Page, Text, View, StyleSheet, Image, pdf } from '@react-pdf/renderer'
 import type { ProcuraFormData } from '@/lib/schema'
 import { AVVOCATO } from '@/data/avvocato'
+import { PDF_LEGAL_COPY } from '@/config/content'
 
 /* eslint-disable jsx-a11y/alt-text */
 
@@ -269,32 +270,13 @@ function getCurrentDateItalian(): string {
    FIXED NOMINO TEXT
 ========================================================= */
 
-const TESTO_NOMINO_FISSO = `quale mio difensore e procuratore speciale in ogni fase e grado, anche nelle fasi dell'esecuzione, opposizione, incidentale, cautelare, ed in sede di gravame, l’Avv. Francesca Guicciardini del Foro di Milano, C.F. GCCFNC92H43A662W, nata a Bari il 03.06.1992, con studio in Milano, Via Mario Pieri n.2, conferendole ogni più ampia facoltà di legge, ivi comprese le facoltà di transigere, conciliare, incassare, rinunciare agli atti ed accettarne la rinuncia, farsi rappresentare, assistere e sostituire, eleggere domicili, rinunziare alla comparizione delle parti, riassumere la causa, proseguirla, chiamare terzi in causa, deferire giuramento, proporre domande riconvenzionali ed azioni cautelari di qualsiasi genere e natura in corso di causa, chiedere ed accettare rendiconti, ed assumendo sin d’ora per rato e valido l’operato del suddetto legale, il quale procuratore dichiara di voler ricevere le comunicazioni a mezzo PEC: francesca.guicciardini@pec.it.
+const TESTO_NOMINO_FISSO = PDF_LEGAL_COPY.nominoText
 
-Dichiaro di essere stato informato, ai sensi dell’art. 4, co. 3, D. Lgs. n. 28/2010, della possibilità di ricorrere al procedimento di mediazione ivi previsto e dei benefici fiscali di cui agli artt. 17 e 20 del medesimo decreto, nonché dei casi in cui l’esperimento del procedimento di mediazione è condizione di procedibilità della domanda giudiziale.
+const TESTO_AUTODICHIARAZIONE_ITALIANO = PDF_LEGAL_COPY.autodichiarazioneIntro
 
-Dichiaro di essere stato informato, ai sensi dell’art. 2, co. 7, D.L. n. 132/2014, della possibilità di ricorrere alla convenzione di negoziazione assistita da uno o più avvocati disciplinata dagli artt. 2 e ss. del suddetto decreto legge.
+const AUTODICHIARAZIONE_OPTION_LABELS = PDF_LEGAL_COPY.autodichiarazioneOptionLabels
 
-Dichiaro, ai sensi e per gli effetti di cui al D. Lgs. n. 196/2003 e s.m.i., di essere stato informato che i miei dati personali, anche sensibili, verranno utilizzati per le finalità inerenti al presente mandato, autorizzando sin d'ora il rispettivo trattamento.
-
-Eleggo domicilio presso lo studio dell’Avv. Francesca Guicciardini, sito in Milano, Via Mario Pieri n. 2.
-
-Dichiaro di revocare ogni precedente mandato conferito.`
-
-const TESTO_AUTODICHIARAZIONE_ITALIANO = `Io sottoscritto dichiaro di aver compreso in modo chiaro che il ruolo dell'ufficio Easy2Do e limitato esclusivamente al conferimento di incarico legale tramite l'avvocato incaricato, al solo fine di svolgere una delle seguenti attivita:`
-
-const AUTODICHIARAZIONE_OPTION_LABELS = {
-  prima_udienza:
-    'al fine di acquisire ogni utile informazione in merito allo stato della mia domanda di protezione internazionale e di accertare la data della prima udienza dinanzi all’Autorità competente, senza alcun potere di intervento sui tempi o sulle decisioni delle autorità competentiseguire la prima udienza relativa alla mia domanda di asilo',
-  riscontro_tribunale:
-    'richiedere ed acquisire copia del provvedimento conclusivo adottato dalla Commissione competente in relazione alla mia domanda di protezione internazionale, senza alcun potere di intervento sui tempi o sull’esito del procedimento',
-} as const
-
-const TESTO_AUTODICHIARAZIONE_ITALIANO_FINALE = `Resta espressamente inteso che l’ufficio non ha alcun potere né intervento in merito ai tempi, alle udienze o all’esito del procedimento.
-L’attività dell’ufficio ha natura meramente amministrativa ed è svolta nei limiti della legge italiana.
-
-Dichiaro che il contenuto mi è stato spiegato anche in lingua araba e di averlo compreso.
-Dichiaro di aver letto e accettato quanto sopra.`
+const TESTO_AUTODICHIARAZIONE_ITALIANO_FINALE = PDF_LEGAL_COPY.autodichiarazioneFinal
 
 /* =========================================================
    COMPONENTS

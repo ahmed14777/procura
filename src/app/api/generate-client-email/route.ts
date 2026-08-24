@@ -22,10 +22,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { ProcuraFormData } from '@/lib/schema'
 import { resolvePec } from '@/lib/pecResolver'
+import {
+  PUBLIC_ERROR_MESSAGE,
+  createSecurityErrorReference,
+  logSecurityError,
+} from '@/lib/security'
 
 interface EmailGenerationRequest {
   formData: ProcuraFormData
   documentFileName: string
+  paymentSessionId: string
   documentBase64?: string // Base64-encoded document
 }
 
@@ -42,6 +48,25 @@ interface EmailGenerationResponse {
 
 function getRegularInstitutionEmail(pec: string): string {
   return pec.replace(/@pec\.interno\.it$/i, '@interno.it')
+}
+
+async function isPaidStripeSession(sessionId: string): Promise<boolean> {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+  if (!stripeSecretKey) {
+    throw new Error('STRIPE_SECRET_KEY not configured')
+  }
+
+  const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
+    headers: { Authorization: `Bearer ${stripeSecretKey}` },
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Stripe API error: ${response.status}`)
+  }
+
+  const session = (await response.json()) as { payment_status?: string }
+  return session.payment_status === 'paid'
 }
 
 /**
@@ -281,11 +306,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as EmailGenerationRequest
 
     // Validate input
-    if (!body.formData || !body.documentFileName) {
-      return NextResponse.json(
-        { error: 'Parametri mancanti: formData o documentFileName' },
-        { status: 400 }
-      )
+    if (!body.formData || !body.documentFileName || !body.paymentSessionId) {
+      return NextResponse.json({ error: 'Parametri mancanti.' }, { status: 400 })
+    }
+
+    const isPaid = await isPaidStripeSession(body.paymentSessionId)
+    if (!isPaid) {
+      return NextResponse.json({ error: 'Pagamento non verificato.' }, { status: 402 })
     }
 
     const formData = body.formData
@@ -313,12 +340,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response, { status: 200 })
   } catch (error) {
-    console.error('Email generation error:', error)
+    const reference = createSecurityErrorReference()
+    logSecurityError('generate-client-email:POST', error, reference)
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Errore durante la generazione dell'email",
+        error: PUBLIC_ERROR_MESSAGE,
+        reference,
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { 'Cache-Control': 'no-store' },
+      }
     )
   }
 }

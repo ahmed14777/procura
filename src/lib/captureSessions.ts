@@ -18,6 +18,7 @@ export interface CapturedFile {
 export interface CaptureSession {
   expiresAt: number
   retrievalTokenHash: string
+  submitTokenHash: string
   file?: CapturedFile
   storedFile?: { blobUrl: string; name: string; type: string }
 }
@@ -35,14 +36,19 @@ export async function createCaptureSession() {
   await cleanupExpiredBlobs()
   const id = randomBytes(24).toString('base64url')
   const retrievalToken = randomBytes(24).toString('base64url')
+  const submitToken = randomBytes(24).toString('base64url')
   const expiresAt = Date.now() + SESSION_LIFETIME_SECONDS * 1000
-  const session = { expiresAt, retrievalTokenHash: hashToken(retrievalToken) }
+  const session = {
+    expiresAt,
+    retrievalTokenHash: hashToken(retrievalToken),
+    submitTokenHash: hashToken(submitToken),
+  }
   if (hasRemoteStorage()) {
     await getRedis().set(key(id), session, { ex: SESSION_LIFETIME_SECONDS })
   } else {
     localSessions.set(id, session)
   }
-  return { id, expiresAt, retrievalToken }
+  return { id, expiresAt, retrievalToken, submitToken }
 }
 
 export async function getCaptureSession(id: string) {
@@ -119,6 +125,10 @@ export async function getCapturedFileContent(session: CaptureSession) {
 
 export function canRetrieveCapture(session: CaptureSession, retrievalToken: string | null) {
   return Boolean(retrievalToken && hashToken(retrievalToken) === session.retrievalTokenHash)
+}
+
+export function canSubmitCapture(session: CaptureSession, submitToken: string | null) {
+  return Boolean(submitToken && hashToken(submitToken) === session.submitTokenHash)
 }
 
 export async function deleteCaptureSession(id: string, retrievalToken: string | null) {

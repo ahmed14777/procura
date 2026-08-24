@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import { CodiceFiscaleUtils } from '@marketto/codice-fiscale-utils'
 import belfioreConnector from '@marketto/belfiore-connector-embedded'
 import { isCodiceFiscaleFormallyValid } from '@/lib/codiceFiscale'
+import {
+  PUBLIC_ERROR_MESSAGE,
+  createSecurityErrorReference,
+  logSecurityError,
+} from '@/lib/security'
+import { consumeRateLimit } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -94,11 +100,39 @@ async function normalizeBirthCountry(extracted: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
+  const rateLimit = await consumeRateLimit({
+    request,
+    bucket: 'extract-document',
+    limit: 5,
+    windowSeconds: 5 * 60,
+  })
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: 'Hai inviato troppe richieste. Riprova tra poco.',
+      },
+      {
+        status: 429,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+        },
+      }
+    )
+  }
+
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
+    const reference = createSecurityErrorReference()
+    logSecurityError(
+      'extract-document:POST:missing-api-key',
+      new Error('OPENAI_API_KEY missing'),
+      reference
+    )
     return NextResponse.json(
-      { error: 'OPENAI_API_KEY non è configurata sul server.' },
-      { status: 503 }
+      { error: PUBLIC_ERROR_MESSAGE, reference },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
     )
   }
 
@@ -200,7 +234,11 @@ Never return only the digits and never return the leading label ID. Do not confu
     extracted.luogoNascita = await normalizeBirthCountry(extracted)
     return NextResponse.json({ data: extracted })
   } catch (error) {
-    console.error('Document extraction error', error)
-    return NextResponse.json({ error: "Errore durante l'analisi del documento." }, { status: 500 })
+    const reference = createSecurityErrorReference()
+    logSecurityError('extract-document:POST', error, reference)
+    return NextResponse.json(
+      { error: PUBLIC_ERROR_MESSAGE, reference },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    )
   }
 }

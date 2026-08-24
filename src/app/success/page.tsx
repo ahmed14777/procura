@@ -7,6 +7,7 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import type { ProcuraFormData } from '@/lib/schema'
 import { ProcuraForm } from '@/components/ProcuraForm'
+import { PUBLIC_ERROR_MESSAGE } from '@/lib/security'
 
 /**
  * Success Page Content - After Stripe Payment
@@ -33,10 +34,12 @@ function PaymentSuccessContent() {
   const [isPreparingRequest, setIsPreparingRequest] = useState(false)
   const emailRef = useRef<HTMLDivElement>(null)
 
-  const finishOrder = () => {
-    if (!window.confirm('هل تريد إنهاء الطلب والخروج من الصفحة؟')) return
+  const startNewRequest = () => {
+    if (!window.confirm('هل تريد بدء طلب جديد؟')) return
     sessionStorage.removeItem('pendingClientRequest')
     sessionStorage.removeItem('postPaymentFormData')
+    sessionStorage.removeItem('stripeSessionId')
+    localStorage.removeItem('pendingClientRequest')
     localStorage.removeItem('completedClientRequest')
     router.push('/')
   }
@@ -57,6 +60,7 @@ function PaymentSuccessContent() {
           status?: string
           error?: string
           customerEmail?: string | null
+          clientPhone?: string | null
         }
 
         if (!response.ok || result.status !== 'paid') {
@@ -76,13 +80,19 @@ function PaymentSuccessContent() {
           }
         }
 
-        const storedRequest = sessionStorage.getItem('pendingClientRequest')
-        if (!storedRequest) throw new Error('Dati della richiesta non trovati')
-
-        const stored = JSON.parse(storedRequest) as {
-          formData: Partial<ProcuraFormData>
-          documentFileName: string
-        }
+        const storedRequest =
+          sessionStorage.getItem('pendingClientRequest') ||
+          localStorage.getItem('pendingClientRequest')
+        const stored = storedRequest
+          ? (JSON.parse(storedRequest) as {
+              formData: Partial<ProcuraFormData>
+              documentFileName: string
+            })
+          : {
+              formData: { telefono: result.clientPhone || '' },
+              documentFileName: 'documento.pdf',
+            }
+        if (!stored.formData.telefono) throw new Error('Dati della richiesta non trovati')
         setPendingRequest({
           ...stored,
           formData: {
@@ -92,7 +102,7 @@ function PaymentSuccessContent() {
         })
       } catch (err) {
         console.error('Payment verification error:', err)
-        setError(err instanceof Error ? err.message : 'Errore durante la verifica')
+        setError(PUBLIC_ERROR_MESSAGE)
       } finally {
         setIsLoading(false)
       }
@@ -106,12 +116,15 @@ function PaymentSuccessContent() {
       setIsPreparingRequest(true)
       setError(null)
       try {
+        if (!sessionId) throw new Error('Sessione pagamento mancante')
+
         const response = await fetch('/api/generate-client-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             formData: data,
             documentFileName: sourceDocument.name,
+            paymentSessionId: sessionId,
           }),
         })
         const result = await response.json()
@@ -124,8 +137,10 @@ function PaymentSuccessContent() {
         )
         sessionStorage.removeItem('pendingClientRequest')
         sessionStorage.removeItem('postPaymentFormData')
+        localStorage.removeItem('pendingClientRequest')
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Errore durante la preparazione')
+        console.error('Client request preparation error:', err)
+        setError(PUBLIC_ERROR_MESSAGE)
       } finally {
         setIsPreparingRequest(false)
       }
@@ -348,10 +363,10 @@ function PaymentSuccessContent() {
           >
             <button
               type="button"
-              onClick={finishOrder}
+              onClick={startNewRequest}
               className="rounded-lg bg-amber-500 px-6 py-3 font-semibold text-slate-950 transition hover:bg-amber-400"
             >
-              إنهاء الطلب
+              طلب جديد / Nuova richiesta
             </button>
           </motion.div>
         </div>

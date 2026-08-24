@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { PROJECT_BRANDING } from '@/config/content'
 
 interface HeaderProps {
   role?: 'client' | 'lawyer'
@@ -47,7 +48,7 @@ export function Header({
                 : 'h-9 w-9 border-amber-400/30 bg-amber-400/10 text-sm text-amber-300'
             }`}
           >
-            E2D
+            {PROJECT_BRANDING.logoText}
           </div>
           <div className="min-w-0">
             <p
@@ -55,7 +56,9 @@ export function Header({
                 isLawyer ? 'text-white' : 'text-white'
               }`}
             >
-              {isLawyer ? 'Easy2Do - Area Operativa' : 'Easy2Do - Servizio Clienti'}
+              {isLawyer
+                ? `${PROJECT_BRANDING.projectName} - ${PROJECT_BRANDING.headerLawyerSuffix}`
+                : `${PROJECT_BRANDING.projectName} - ${PROJECT_BRANDING.headerClientSuffix}`}
             </p>
             <p
               className={`hidden truncate text-[11px] sm:block ${

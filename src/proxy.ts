@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { STAFF_SESSION_COOKIE, verifyStaffSessionToken } from '@/lib/staffAuth'
+import { applySecurityHeaders } from '@/lib/security'
 
 function isPublicPage(pathname: string) {
   return (
@@ -24,21 +25,30 @@ function isProtectedRequest(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const withSecurityHeaders = (response: NextResponse) => {
+    applySecurityHeaders(response.headers)
+    return response
+  }
+
   const token = request.cookies.get(STAFF_SESSION_COOKIE)?.value
   const authenticated = await verifyStaffSessionToken(token)
 
   if (request.nextUrl.pathname === '/login' && authenticated) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return withSecurityHeaders(NextResponse.redirect(new URL('/', request.url)))
   }
-  if (!isProtectedRequest(request) || authenticated) return NextResponse.next()
+  if (!isProtectedRequest(request) || authenticated) {
+    return withSecurityHeaders(NextResponse.next())
+  }
 
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    return NextResponse.json({ error: 'Accesso dipendenti richiesto.' }, { status: 401 })
+    return withSecurityHeaders(
+      NextResponse.json({ error: 'Richiesta non autorizzata.' }, { status: 401 })
+    )
   }
 
   const homeUrl = new URL('/', request.url)
   homeUrl.searchParams.set('next', request.nextUrl.pathname)
-  return NextResponse.redirect(homeUrl)
+  return withSecurityHeaders(NextResponse.redirect(homeUrl))
 }
 
 export const config = {

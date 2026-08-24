@@ -11,6 +11,9 @@ import { generateEmail, type GeneratedEmail } from '@/lib/emailGenerator'
 import { downloadAutodichiarazionePdf, downloadProcuraPdf } from '@/lib/pdfGenerator'
 import type { ProcuraFormData } from '@/lib/schema'
 import { downloadCompletePracticePdf } from '@/lib/completePracticePdf'
+import { PUBLIC_AUTH_ERROR_MESSAGE, PUBLIC_ERROR_MESSAGE } from '@/lib/security'
+import { CLIENT_CONTRIBUTION } from '@/config/business'
+import { HOME_PAGE_COPY } from '@/config/content'
 
 /**
  * Main Page Component - Procura Francesca
@@ -34,7 +37,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const contributionEuro = '1.99'
+  const contributionEuro = CLIENT_CONTRIBUTION.euro
   const [clientPhone, setClientPhone] = useState('')
   const checkoutOpeningRef = useRef(false)
 
@@ -220,7 +223,8 @@ export default function Home() {
           setModeTransition('idle')
         }, 540)
       } catch (err) {
-        setLawyerError(err instanceof Error ? err.message : 'Errore di autenticazione')
+        console.error('Authentication error:', err)
+        setLawyerError(PUBLIC_AUTH_ERROR_MESSAGE)
       } finally {
         setIsAuthenticating(false)
       }
@@ -247,18 +251,21 @@ export default function Home() {
     setIsLoading(true)
     setError(null)
     try {
-      sessionStorage.setItem(
-        'pendingClientRequest',
-        JSON.stringify({
-          formData: { telefono: phone },
-          documentFileName: 'documento.pdf',
-        })
-      )
+      const pendingRequest = JSON.stringify({
+        formData: { telefono: phone },
+        documentFileName: 'documento.pdf',
+      })
+      sessionStorage.setItem('pendingClientRequest', pendingRequest)
+      localStorage.setItem('pendingClientRequest', pendingRequest)
       sessionStorage.removeItem('postPaymentFormData')
       const response = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'client', amountCents: Math.round(amountEuro * 100) }),
+        body: JSON.stringify({
+          mode: 'client',
+          clientPhone: phone,
+          amountCents: Math.round(amountEuro * 100),
+        }),
       })
       const result = (await response.json()) as { sessionId?: string; url?: string; error?: string }
       if (!response.ok || !result.sessionId || !result.url) {
@@ -267,7 +274,8 @@ export default function Home() {
       sessionStorage.setItem('stripeSessionId', result.sessionId)
       window.location.href = result.url
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore durante il pagamento')
+      console.error('Payment initialization error:', err)
+      setError(PUBLIC_ERROR_MESSAGE)
       setIsLoading(false)
       checkoutOpeningRef.current = false
     }
@@ -319,53 +327,49 @@ export default function Home() {
             ) : (
               <div className="rounded-2xl border border-slate-700/60 bg-slate-800/65 p-6 shadow-xl backdrop-blur-sm sm:p-8">
                 <p className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-300">
-                  Easy2Do
+                  {HOME_PAGE_COPY.brand}
                 </p>
                 <h1 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
-                  إيميل صح لمحكمتك يوفر عليك كتير
+                  {HOME_PAGE_COPY.titleAr}
                 </h1>
                 <p className="mt-1 text-base font-medium text-amber-200">
-                  L’email giusta per la tua Commissione ti fa risparmiare tempo e costi
+                  {HOME_PAGE_COPY.subtitleIt}
                 </p>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                  بنساعدك تجهّز إيميل مناسب لمحكمتك، وتبعتُه للجهة الصح من عندك، عشان توفر وقت
-                  وتكلفة وتتابع موعد جلستك بشكل أسهل.
+                  {HOME_PAGE_COPY.descriptionAr}
                 </p>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  Ti aiutiamo a preparare l’email corretta per la tua Commissione e a inviarla al
-                  destinatario giusto, risparmiando tempo e costi e seguendo più facilmente la data
-                  dell’udienza.
+                  {HOME_PAGE_COPY.descriptionIt}
                 </p>
                 <div className="mt-6 border-y border-slate-700/70 py-3 text-sm text-slate-300">
-                  <span className="font-semibold text-amber-200">دورنا / Il nostro ruolo:</span>{' '}
-                  تجهيز الصيغة والإيميل والإرسال الصحيح فقط، بدون تمثيل أو استشارة قانونية.
-                  <span className="mt-1 block text-slate-400">
-                    Prepariamo il testo, l’email e l’invio corretto. Non offriamo rappresentanza o
-                    consulenza legale.
-                  </span>
+                  <span className="font-semibold text-amber-200">{HOME_PAGE_COPY.roleHeading}</span>{' '}
+                  {HOME_PAGE_COPY.roleBodyAr}
+                  <span className="mt-1 block text-slate-400">{HOME_PAGE_COPY.roleBodyIt}</span>
                 </div>
                 <div className="mt-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-semibold text-amber-100">
-                        مساهمة بسيطة لدعم الخدمة / Contributo per il servizio
+                        {HOME_PAGE_COPY.contributionHeading}
                       </p>
                       <p className="mt-1 text-xs text-slate-300">
-                        مساهمة بسيطة منك مقابل خدمة مفيدة ليك.
+                        {HOME_PAGE_COPY.contributionBodyAr}
                         <br />
-                        Un piccolo contributo per un servizio utile.
+                        {HOME_PAGE_COPY.contributionBodyIt}
                       </p>
                     </div>
-                    <span className="shrink-0 text-base font-semibold text-amber-200">1.99€</span>
+                    <span className="shrink-0 text-base font-semibold text-amber-200">
+                      {CLIENT_CONTRIBUTION.euro}€
+                    </span>
                   </div>
                 </div>
                 <label className="mt-6 block text-sm font-medium text-slate-300">
-                  رقم الهاتف / Numero di telefono
+                  {HOME_PAGE_COPY.phoneLabel}
                   <input
                     type="tel"
                     value={clientPhone}
                     onChange={(event) => setClientPhone(event.target.value)}
-                    placeholder="+39 333 1234567"
+                    placeholder={HOME_PAGE_COPY.phonePlaceholder}
                     autoComplete="tel"
                     required
                     className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-3 text-slate-100 outline-none transition focus:border-amber-400"
@@ -377,14 +381,12 @@ export default function Home() {
                   disabled={isLoading}
                   className="mt-6 w-full rounded-lg bg-amber-500 px-4 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
                 >
-                  {isLoading
-                    ? 'جاري فتح الدفع... / Apertura del pagamento...'
-                    : 'ساهم الآن / Contribuisci ora'}
+                  {isLoading ? HOME_PAGE_COPY.ctaLoading : HOME_PAGE_COPY.ctaIdle}
                 </button>
                 <p className="mt-3 text-center text-xs text-slate-400">
-                  مساهمة بسيطة منك مقابل خدمة مفيدة ليك.
+                  {HOME_PAGE_COPY.bottomNoteAr}
                   <br />
-                  Un piccolo contributo da parte tua per un servizio utile per te.
+                  {HOME_PAGE_COPY.bottomNoteIt}
                 </p>
               </div>
             )}

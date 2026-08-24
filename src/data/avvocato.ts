@@ -3,14 +3,16 @@
  * This data is reused across the application for PDF generation
  */
 
-export const AVVOCATO = {
-  nome: 'Francesca',
-  cognome: 'Guicciardini',
-  nomeCompleto: 'Avv. Francesca Guicciardini',
-  foro: 'Milano',
-  codiceFiscale: 'GCCFNC92H43A662W',
-  studio: 'Via Mario Pieri 2 – Milano',
-  pec: 'francesca.guicciardini@pec.it',
-} as const;
+import { LAWYER_PROFILE } from '@/config/business'
 
-export type Avvocato = typeof AVVOCATO;
+export const AVVOCATO = {
+  nome: LAWYER_PROFILE.firstName,
+  cognome: LAWYER_PROFILE.lastName,
+  nomeCompleto: LAWYER_PROFILE.fullName,
+  foro: LAWYER_PROFILE.barAssociation,
+  codiceFiscale: LAWYER_PROFILE.taxCode,
+  studio: LAWYER_PROFILE.officeAddress,
+  pec: LAWYER_PROFILE.pec,
+} as const
+
+export type Avvocato = typeof AVVOCATO
