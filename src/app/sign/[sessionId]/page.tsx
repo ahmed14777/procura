@@ -7,7 +7,12 @@ import { PUBLIC_ERROR_MESSAGE } from '@/lib/security'
 export default function SignaturePage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const searchParams = useSearchParams()
-  const [submitToken, setSubmitToken] = useState<string | null>(null)
+  const [hashSubmitToken] = useState(() => {
+    if (typeof window === 'undefined') return null
+    const raw = window.location.hash.replace(/^#/, '')
+    return new URLSearchParams(raw).get('st')
+  })
+  const submitToken = searchParams.get('submitToken') || hashSubmitToken
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawingRef = useRef(false)
   const [clientName, setClientName] = useState('')
@@ -23,20 +28,6 @@ export default function SignaturePage() {
     const timeout = window.setTimeout(() => window.close(), 1200)
     return () => window.clearTimeout(timeout)
   }, [sent])
-
-  useEffect(() => {
-    const fallbackFromQuery = searchParams.get('submitToken')
-    if (fallbackFromQuery) {
-      setSubmitToken(fallbackFromQuery)
-      return
-    }
-
-    const hash = window.location.hash
-    const raw = hash.startsWith('#') ? hash.slice(1) : hash
-    const params = new URLSearchParams(raw)
-    const fromHash = params.get('st')
-    setSubmitToken(fromHash)
-  }, [searchParams])
 
   useEffect(() => {
     fetch(`/api/signature-sessions/${sessionId}`, { cache: 'no-store' })

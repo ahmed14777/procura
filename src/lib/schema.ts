@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { z } from 'zod'
+import { isCodiceFiscaleFormallyValid } from './codiceFiscale'
 
 /**
  * Zod validation schema for the Procura form
@@ -6,130 +7,122 @@ import { z } from "zod";
  */
 
 // Tipo richiesta enum
-export const tipoRichiestaEnum = z.enum(["asilo", "accesso"]);
-export type TipoRichiesta = z.infer<typeof tipoRichiestaEnum>;
+export const tipoRichiestaEnum = z.enum(['asilo', 'accesso'])
+export type TipoRichiesta = z.infer<typeof tipoRichiestaEnum>
 
 // Main form schema
 export const procuraFormSchema = z.object({
   // Client personal data
   nome: z
     .string()
-    .min(1, "Il nome è obbligatorio")
-    .min(2, "Il nome deve avere almeno 2 caratteri")
-    .max(50, "Il nome non può superare 50 caratteri")
-    .regex(
-      /^[a-zA-ZàèéìòùÀÈÉÌÒÙ\s'-]+$/,
-      "Il nome contiene caratteri non validi",
-    )
+    .min(1, 'Il nome è obbligatorio')
+    .min(2, 'Il nome deve avere almeno 2 caratteri')
+    .max(50, 'Il nome non può superare 50 caratteri')
+    .regex(/^[a-zA-ZàèéìòùÀÈÉÌÒÙ\s'-]+$/, 'Il nome contiene caratteri non validi')
     .transform((val) => {
       return val
         .trim()
         .toLowerCase()
-        .split(" ")
+        .split(' ')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+        .join(' ')
     }),
 
   cognome: z
     .string()
-    .min(1, "Il cognome è obbligatorio")
-    .min(2, "Il cognome deve avere almeno 2 caratteri")
-    .max(50, "Il cognome non può superare 50 caratteri")
-    .regex(
-      /^[a-zA-ZàèéìòùÀÈÉÌÒÙ\s'-]+$/,
-      "Il cognome contiene caratteri non validi",
-    )
+    .min(1, 'Il cognome è obbligatorio')
+    .min(2, 'Il cognome deve avere almeno 2 caratteri')
+    .max(50, 'Il cognome non può superare 50 caratteri')
+    .regex(/^[a-zA-ZàèéìòùÀÈÉÌÒÙ\s'-]+$/, 'Il cognome contiene caratteri non validi')
     .transform((val) => {
       return val
         .trim()
         .toLowerCase()
-        .split(" ")
+        .split(' ')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+        .join(' ')
     }),
 
   dataNascita: z
     .string()
-    .min(1, "La data di nascita è obbligatoria")
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato data non valido")
+    .min(1, 'La data di nascita è obbligatoria')
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato data non valido')
     .refine((date) => {
-      const parsed = new Date(date);
-      const now = new Date();
-      return parsed < now;
-    }, "La data di nascita deve essere nel passato")
+      const parsed = new Date(date)
+      const now = new Date()
+      return parsed < now
+    }, 'La data di nascita deve essere nel passato')
     .refine((date) => {
-      const parsed = new Date(date);
-      const minDate = new Date("1900-01-01");
-      return parsed > minDate;
-    }, "La data di nascita non è valida"),
+      const parsed = new Date(date)
+      const minDate = new Date('1900-01-01')
+      return parsed > minDate
+    }, 'La data di nascita non è valida'),
 
   luogoNascita: z
     .string()
-    .min(1, "Il luogo di nascita è obbligatorio")
-    .min(2, "Il luogo di nascita deve avere almeno 2 caratteri")
-    .max(100, "Il luogo di nascita non può superare 100 caratteri"),
+    .min(1, 'Il luogo di nascita è obbligatorio')
+    .min(2, 'Il luogo di nascita deve avere almeno 2 caratteri')
+    .max(100, 'Il luogo di nascita non può superare 100 caratteri'),
 
   codiceFiscale: z
     .string()
-    .min(1, "Il codice fiscale è obbligatorio")
-    .length(16, "Il codice fiscale deve essere di 16 caratteri")
-    .regex(
-      /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/i,
-      "Il codice fiscale non è valido",
-    )
+    .trim()
+    .min(1, 'Il codice fiscale è obbligatorio')
+    .max(20, 'Il codice fiscale non può superare 20 caratteri')
+    .refine(isCodiceFiscaleFormallyValid, 'Il codice fiscale non è valido')
     .transform((val) => val.toUpperCase()),
 
   // Vestanet: two letters followed by digits (for example AB12345)
   numeroVestanet: z
     .string()
     .trim()
-    .max(20, "Il numero Vestanet non può superare 20 caratteri")
+    .max(20, 'Il numero Vestanet non può superare 20 caratteri')
     .refine(
-      (value) => value === "" || /^[A-Z]{2}[0-9]+$/i.test(value),
-      "Il numero Vestanet deve iniziare con due lettere seguite da numeri",
+      (value) => value === '' || /^[A-Z]{2}[0-9]+$/i.test(value),
+      'Il numero Vestanet deve iniziare con due lettere seguite da numeri'
     )
     .transform((value) => value.toUpperCase()),
 
   // Selected location (must be from official list)
-  sedeSelezionata: z.string().min(1, "La sede è obbligatoria"),
+  sedeSelezionata: z.string().min(1, 'La sede è obbligatoria'),
   telefono: z
     .string()
-    .min(1, "Il telefono è obbligatorio")
-    .regex(/^(\+?[0-9]{8,15})$/, "Numero di telefono non valido"),
+    .min(1, 'Il telefono è obbligatorio')
+    .regex(/^(\+?[0-9]{8,15})$/, 'Numero di telefono non valido'),
 
   email: z
     .string()
     .min(1, "L'email è obbligatoria")
-    .email("Email non valida")
+    .email('Email non valida')
     .max(100, "L'email non può superare 100 caratteri"),
 
   // Request type
   tipoRichiesta: tipoRichiestaEnum,
-});
+})
 
-export type ProcuraFormData = z.infer<typeof procuraFormSchema>;
+export type ProcuraFormData = z.infer<typeof procuraFormSchema>
 
 // Helper function to validate form data
 export function validateProcuraForm(data: unknown): {
-  success: boolean;
-  data?: ProcuraFormData;
-  errors?: z.ZodError["errors"];
+  success: boolean
+  data?: ProcuraFormData
+  errors?: z.ZodError['errors']
 } {
-  const result = procuraFormSchema.safeParse(data);
+  const result = procuraFormSchema.safeParse(data)
 
   if (result.success) {
-    return { success: true, data: result.data };
+    return { success: true, data: result.data }
   }
 
-  return { success: false, errors: result.error.errors };
+  return { success: false, errors: result.error.errors }
 }
 
 // Helper to get error message for a field
 export function getFieldError(
-  errors: z.ZodError["errors"] | undefined,
-  fieldName: string,
+  errors: z.ZodError['errors'] | undefined,
+  fieldName: string
 ): string | undefined {
-  if (!errors) return undefined;
-  const error = errors.find((e) => e.path[0] === fieldName);
-  return error?.message;
+  if (!errors) return undefined
+  const error = errors.find((e) => e.path[0] === fieldName)
+  return error?.message
 }

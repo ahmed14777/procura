@@ -37,7 +37,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const contributionEuro = CLIENT_CONTRIBUTION.euro
   const [clientPhone, setClientPhone] = useState('')
   const checkoutOpeningRef = useRef(false)
 
@@ -241,13 +240,6 @@ export default function Home() {
       checkoutOpeningRef.current = false
       return
     }
-    const amountEuro = Number(contributionEuro)
-    if (amountEuro !== 1.99) {
-      setError('اختار مساهمة من الخيارات المتاحة / Scegli uno dei contributi disponibili.')
-      checkoutOpeningRef.current = false
-      return
-    }
-
     setIsLoading(true)
     setError(null)
     try {
@@ -264,7 +256,7 @@ export default function Home() {
         body: JSON.stringify({
           mode: 'client',
           clientPhone: phone,
-          amountCents: Math.round(amountEuro * 100),
+          amountCents: CLIENT_CONTRIBUTION.cents,
         }),
       })
       const result = (await response.json()) as { sessionId?: string; url?: string; error?: string }
@@ -325,45 +317,27 @@ export default function Home() {
                 role="lawyer"
               />
             ) : (
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-800/65 p-6 shadow-xl backdrop-blur-sm sm:p-8">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-amber-300">
-                  {HOME_PAGE_COPY.brand}
-                </p>
-                <h1 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
+              <div className="mx-auto w-full max-w-xl rounded-lg border border-slate-700/60 bg-slate-800/65 p-5 shadow-xl backdrop-blur-sm sm:p-7">
+                <h1 className="text-2xl font-semibold text-white sm:text-3xl">
                   {HOME_PAGE_COPY.titleAr}
                 </h1>
-                <p className="mt-1 text-base font-medium text-amber-200">
+                <p className="mt-2 text-sm font-medium text-amber-200">
                   {HOME_PAGE_COPY.subtitleIt}
                 </p>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className="mt-4 text-sm leading-6 text-slate-300">
                   {HOME_PAGE_COPY.descriptionAr}
                 </p>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  {HOME_PAGE_COPY.descriptionIt}
-                </p>
-                <div className="mt-6 border-y border-slate-700/70 py-3 text-sm text-slate-300">
-                  <span className="font-semibold text-amber-200">{HOME_PAGE_COPY.roleHeading}</span>{' '}
-                  {HOME_PAGE_COPY.roleBodyAr}
-                  <span className="mt-1 block text-slate-400">{HOME_PAGE_COPY.roleBodyIt}</span>
+
+                <div className="mt-5 flex items-center justify-between border-y border-slate-700/70 py-3">
+                  <span className="text-sm text-slate-300">
+                    {HOME_PAGE_COPY.contributionHeading}
+                  </span>
+                  <span className="shrink-0 text-xl font-semibold text-amber-200">
+                    {CLIENT_CONTRIBUTION.euro}€
+                  </span>
                 </div>
-                <div className="mt-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-amber-100">
-                        {HOME_PAGE_COPY.contributionHeading}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-300">
-                        {HOME_PAGE_COPY.contributionBodyAr}
-                        <br />
-                        {HOME_PAGE_COPY.contributionBodyIt}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-base font-semibold text-amber-200">
-                      {CLIENT_CONTRIBUTION.euro}€
-                    </span>
-                  </div>
-                </div>
-                <label className="mt-6 block text-sm font-medium text-slate-300">
+
+                <label className="mt-5 block text-sm font-medium text-slate-300">
                   {HOME_PAGE_COPY.phoneLabel}
                   <input
                     type="tel"
@@ -379,15 +353,26 @@ export default function Home() {
                   type="button"
                   onClick={() => void startClientPayment()}
                   disabled={isLoading}
-                  className="mt-6 w-full rounded-lg bg-amber-500 px-4 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
+                  className="mt-4 w-full rounded-lg bg-amber-500 px-4 py-3.5 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/20 transition hover:bg-amber-400 disabled:cursor-wait disabled:opacity-60"
                 >
                   {isLoading ? HOME_PAGE_COPY.ctaLoading : HOME_PAGE_COPY.ctaIdle}
                 </button>
-                <p className="mt-3 text-center text-xs text-slate-400">
-                  {HOME_PAGE_COPY.bottomNoteAr}
-                  <br />
-                  {HOME_PAGE_COPY.bottomNoteIt}
-                </p>
+
+                <details className="mt-4 border-t border-slate-700/70 pt-3 text-sm text-slate-400">
+                  <summary className="cursor-pointer text-center text-xs text-slate-400 hover:text-slate-200">
+                    التفاصيل / Dettagli del servizio
+                  </summary>
+                  <div className="mt-3 space-y-2 leading-6">
+                    <p>{HOME_PAGE_COPY.descriptionIt}</p>
+                    <p>
+                      <span className="font-semibold text-slate-300">
+                        {HOME_PAGE_COPY.roleHeading}
+                      </span>{' '}
+                      {HOME_PAGE_COPY.roleBodyAr}
+                    </p>
+                    <p>{HOME_PAGE_COPY.roleBodyIt}</p>
+                  </div>
+                </details>
               </div>
             )}
 

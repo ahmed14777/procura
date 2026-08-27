@@ -27,6 +27,7 @@ import {
 } from '@/lib/security'
 import { consumeRateLimit } from '@/lib/rateLimit'
 import { PROJECT_BRANDING } from '@/config/content'
+import { CLIENT_CONTRIBUTION } from '@/config/business'
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 const STRIPE_PRICE_ID_CLIENT = process.env.STRIPE_PRICE_ID_CLIENT
@@ -201,8 +202,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (body.amountCents !== undefined && body.amountCents !== 199) {
-      return NextResponse.json({ error: 'Il contributo previsto è di 1,99€.' }, { status: 400 })
+    if (body.amountCents !== undefined && body.amountCents !== CLIENT_CONTRIBUTION.cents) {
+      return NextResponse.json(
+        { error: `Il contributo previsto è di ${CLIENT_CONTRIBUTION.euro}€.` },
+        { status: 400 }
+      )
     }
 
     if (!STRIPE_PRICE_ID_CLIENT && !Number.isFinite(STRIPE_FALLBACK_AMOUNT_CENTS)) {

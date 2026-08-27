@@ -23,6 +23,6 @@ export const LAWYER_OFFICE_LOCATIONS = {
 } as const
 
 export const CLIENT_CONTRIBUTION = {
-  euro: '1.99',
-  cents: 199,
+  euro: '0.99',
+  cents: 99,
 } as const

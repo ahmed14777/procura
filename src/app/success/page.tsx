@@ -349,8 +349,17 @@ function PaymentSuccessContent() {
             className="rounded-lg border border-blue-400/30 bg-blue-500/10 p-4 mb-6"
           >
             <p className="text-blue-200 text-sm">
-              <strong>اكتملت الخطوات / Procedura completata:</strong> أرفق نسخة من الإقامة فقط ثم
-              اضغط إرسال.
+              {emailData ? (
+                <>
+                  <strong>اكتملت الخطوات / Procedura completata:</strong> أرفق نسخة من الإقامة فقط
+                  ثم اضغط إرسال.
+                </>
+              ) : (
+                <>
+                  <strong>الدفع مؤكد / Pagamento confermato:</strong> ارفع المستند وأكمل البيانات
+                  لتجهيز الطلب.
+                </>
+              )}
             </p>
           </motion.div>
 

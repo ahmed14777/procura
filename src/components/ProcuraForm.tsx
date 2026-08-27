@@ -10,7 +10,11 @@ import {
 import type { ProcuraFormData, TipoRichiesta } from '@/lib/schema'
 import { downloadImageAsPdf } from '@/lib/imageToPdf'
 import { generateProcuraPdf } from '@/lib/pdfGenerator'
-import { isCodiceFiscaleFormallyValid, normalizeCodiceFiscale } from '@/lib/codiceFiscale'
+import {
+  isCodiceFiscaleFormallyValid,
+  normalizeCodiceFiscale,
+  NO_CODICE_FISCALE,
+} from '@/lib/codiceFiscale'
 import { PUBLIC_ERROR_MESSAGE } from '@/lib/security'
 import { LAWYER_OFFICE_LOCATIONS } from '@/config/business'
 import { LAWYER_FOLLOW_UP_COPY } from '@/config/content'
@@ -693,10 +697,9 @@ export function ProcuraForm({
     nome: formData.nome.trim(),
     cognome: formData.cognome.trim(),
     luogoNascita: formData.luogoNascita.trim(),
-    codiceFiscale:
-      isClientRole && hasNoCodiceFiscale
-        ? 'NON DISPONIBILE'
-        : formData.codiceFiscale.trim().toUpperCase(),
+    codiceFiscale: hasNoCodiceFiscale
+      ? NO_CODICE_FISCALE
+      : formData.codiceFiscale.trim().toUpperCase(),
     telefono: formData.telefono.trim().replace(/\s+/g, ''),
     email: formData.email.trim(),
     numeroVestanet: formData.numeroVestanet.trim().toUpperCase(),
@@ -753,7 +756,7 @@ export function ProcuraForm({
         if (!value.trim()) return 'Il luogo di nascita è obbligatorio'
         break
       case 'codiceFiscale':
-        if (isClientRole && hasNoCodiceFiscale) break
+        if (hasNoCodiceFiscale) break
         if (!value.trim()) return 'Il codice fiscale è obbligatorio'
         if (!isCodiceFiscaleFormallyValid(value))
           return 'Il codice fiscale non è formalmente valido'
@@ -888,7 +891,7 @@ export function ProcuraForm({
       'numeroVestanet',
     ]
 
-    if (!(isClientRole && hasNoCodiceFiscale)) {
+    if (!hasNoCodiceFiscale) {
       requiredFields.push('codiceFiscale')
     }
 
@@ -1001,7 +1004,9 @@ export function ProcuraForm({
           </h2>
           <p className={`text-sm ${helperToneClass}`}>
             {role === 'client'
-              ? 'Compila i tuoi dati per inviare la richiesta e completare il pagamento.'
+              ? clientPaid
+                ? 'Pagamento confermato. Completa i dati per preparare la richiesta.'
+                : 'Compila i tuoi dati per inviare la richiesta e completare il pagamento.'
               : 'Inserisci i dati del cliente per gestire documenti e comunicazioni.'}
           </p>
         </div>
@@ -1022,7 +1027,7 @@ export function ProcuraForm({
             <div className="mb-4 border-b border-slate-700/60 pb-3">
               <p className="text-sm font-semibold text-white">ابدأ بالمستند</p>
               <p className="mt-1 text-xs text-slate-400">
-                ارفع الملف، وسنقرأ البيانات تلقائيًا لتراجعها قبل الدفع.
+                ارفع الملف، وسنقرأ البيانات تلقائيًا لتراجعها قبل الإرسال.
               </p>
             </div>
           )}
@@ -1577,7 +1582,7 @@ export function ProcuraForm({
                     </span>
                   )}
               </div>
-              {isClientRole && (
+              {(isClientRole || role === 'lawyer') && (
                 <label className="mb-2 flex items-center gap-2 text-xs font-medium text-[#415d7d]">
                   <input
                     type="checkbox"
@@ -1585,7 +1590,7 @@ export function ProcuraForm({
                     onChange={(event) => handleNoCodiceToggle(event.target.checked)}
                     className="h-4 w-4 rounded border-[#9eb6d2] text-[#193556] focus:ring-[#193556]/35"
                   />
-                  Non ho il codice fiscale al momento
+                  Non ho il codice fiscale
                 </label>
               )}
               <input
@@ -1595,7 +1600,7 @@ export function ProcuraForm({
                 onChange={handleChange}
                 onBlur={handleBlur}
                 placeholder={hasNoCodiceFiscale ? 'Non disponibile' : 'RSSMRA85M01H501Z'}
-                maxLength={16}
+                maxLength={20}
                 disabled={hasNoCodiceFiscale}
                 className={`${inputClass('codiceFiscale')} uppercase tracking-wider font-mono`}
               />
