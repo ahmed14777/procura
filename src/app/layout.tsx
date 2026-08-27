@@ -3,6 +3,10 @@ import { DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import { APP_METADATA_COPY } from '@/config/content'
 
+type AppMetadata = Omit<Metadata, 'keywords'> & {
+  keywords?: Metadata['keywords'] | readonly string[]
+}
+
 // Primary sans-serif font
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -18,7 +22,7 @@ const cormorant = Cormorant_Garamond({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
+export const metadata: AppMetadata = {
   title: APP_METADATA_COPY.title,
   description: APP_METADATA_COPY.description,
   keywords: APP_METADATA_COPY.keywords,
