@@ -50,17 +50,15 @@ interface StripeCheckoutResponse {
 }
 
 function getCheckoutBaseUrl(request: NextRequest) {
-  const forwardedHost = request.headers.get('x-forwarded-host')
+  if (process.env.NODE_ENV === 'production' && process.env.BASE_URL) {
+    return process.env.BASE_URL.replace(/\/$/, '')
+  }
+
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
   const host = forwardedHost || request.headers.get('host') || 'localhost:3000'
   const protocol =
     request.headers.get('x-forwarded-proto') || request.nextUrl.protocol.replace(':', '')
 
-  if (process.env.NODE_ENV !== 'production') {
-    return `${protocol}://${host}`
-  }
-
-  if (process.env.BASE_URL) return process.env.BASE_URL
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
   return `${protocol}://${host}`
 }
 
