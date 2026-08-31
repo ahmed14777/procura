@@ -78,6 +78,13 @@ export function Header({
               </div>
               <button
                 type="button"
+                onClick={() => router.push('/extension-licenses')}
+                className="shrink-0 rounded-lg border border-amber-400/30 px-3 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-300/10"
+              >
+                Licenze estensione
+              </button>
+              <button
+                type="button"
                 onClick={logout}
                 className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-slate-500 hover:bg-white/5 hover:text-white"
               >

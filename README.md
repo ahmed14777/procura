@@ -64,16 +64,16 @@ src/
 
 ### Form Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| Nome | Yes | Client first name |
-| Cognome | Yes | Client last name |
-| Data di nascita | Yes | Birth date |
-| Luogo di nascita | Yes | Birth place |
-| Codice Fiscale | Yes | Italian tax code (16 chars) |
-| Numero VESTANET | No | Case reference number |
-| Provincia | Yes | Province (from official list only) |
-| Tipo richiesta | Yes | "asilo" or "accesso" |
+| Field            | Required | Description                        |
+| ---------------- | -------- | ---------------------------------- |
+| Nome             | Yes      | Client first name                  |
+| Cognome          | Yes      | Client last name                   |
+| Data di nascita  | Yes      | Birth date                         |
+| Luogo di nascita | Yes      | Birth place                        |
+| Codice Fiscale   | Yes      | Italian tax code (16 chars)        |
+| Numero VESTANET  | No       | Case reference number              |
+| Provincia        | Yes      | Province (from official list only) |
+| Tipo richiesta   | Yes      | "asilo" or "accesso"               |
 
 ## Data Sources
 
@@ -87,9 +87,11 @@ The commission and PEC data comes from official sources:
 ## Request Types
 
 ### Protezione Internazionale (asilo)
+
 Legal reference: "ai sensi della normativa vigente in materia di protezione internazionale"
 
 ### Accesso agli Atti (accesso)
+
 Legal reference: "ai sensi della normativa vigente in materia di accesso agli atti amministrativi"
 
 ## Lawyer Information
@@ -118,11 +120,27 @@ npm run build
 npm start
 ```
 
+## Extension document analysis
+
+The manually distributed CAF extension uses the application backend for secure image and PDF
+analysis. Configure these variables in Vercel before creating extension licenses:
+
+```bash
+KV_REST_API_URL=...
+KV_REST_API_TOKEN=...
+OPENAI_API_KEY=...
+OPENAI_DOCUMENT_MODEL=gpt-4.1-mini # optional
+```
+
+After deployment, authenticated staff can create and revoke activation codes at
+`/extension-licenses`. The raw activation code is displayed only once; Redis stores only its
+SHA-256 hash. Website authentication and extension activation are independent.
+
 ## Notes
 
-- This is a **client-side only** application
-- No backend, database, or external APIs required
-- All processing happens in the browser
+- Personal data captured from forms and CAF autofill data remain in the browser.
+- Document analysis sends the selected file to the application backend and OpenAI after consent;
+  the request uses `store: false` and the original file is not persisted by the application.
 - PDF generation uses @react-pdf/renderer
 
 ---

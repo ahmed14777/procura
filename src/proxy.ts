@@ -16,9 +16,12 @@ function isPublicPage(pathname: string) {
 function isProtectedRequest(request: NextRequest) {
   const { pathname } = request.nextUrl
   if (pathname.startsWith('/api/')) {
+    if (pathname.startsWith('/api/extension-licenses')) return true
     return (
       request.method === 'POST' &&
-      (pathname === '/api/capture-sessions' || pathname === '/api/signature-sessions')
+      (pathname === '/api/capture-sessions' ||
+        pathname === '/api/signature-sessions' ||
+        pathname === '/api/extract-document')
     )
   }
   return !isPublicPage(pathname)
