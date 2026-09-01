@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { setExtensionLicenseActive } from '@/lib/extensionLicenses'
+import { deleteExtensionLicense, setExtensionLicenseActive } from '@/lib/extensionLicenses'
 
 export const runtime = 'nodejs'
 
@@ -19,5 +19,20 @@ export async function PATCH(
       : NextResponse.json({ error: 'Licenza non trovata.' }, { status: 404 })
   } catch {
     return NextResponse.json({ error: 'Impossibile aggiornare la licenza.' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ licenseId: string }> }
+) {
+  try {
+    const { licenseId } = await params
+    const deleted = await deleteExtensionLicense(licenseId)
+    return deleted
+      ? NextResponse.json({ success: true })
+      : NextResponse.json({ error: 'Licenza non trovata.' }, { status: 404 })
+  } catch {
+    return NextResponse.json({ error: 'Impossibile eliminare la licenza.' }, { status: 500 })
   }
 }

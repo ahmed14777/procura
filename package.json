@@ -7,7 +7,10 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:live": "E2E_INCLUDE_LIVE=1 E2E_STRIPE_LIVE=1 playwright test --grep @live",
+    "test:release": "npm run lint && npm run build && npm run test:e2e",
+    "test:release:full": "npm run test:release && npm run test:e2e:live"
   },
   "dependencies": {
     "@marketto/belfiore-connector-embedded": "^1.2.1",

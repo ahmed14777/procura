@@ -27,6 +27,7 @@ export default function ExtensionLicensesPage() {
   const [loading, setLoading] = useState(true)
   const [revealedTokens, setRevealedTokens] = useState<Record<string, string>>({})
   const [revealingId, setRevealingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadLicenses = async () => {
     setLoading(true)
@@ -119,6 +120,32 @@ export default function ExtensionLicensesPage() {
     }
   }
 
+  const deleteLicense = async (license: License) => {
+    const confirmed = window.confirm(`Eliminare la licenza \"${license.name}\"?`)
+    if (!confirmed) return
+
+    setError('')
+    setDeletingId(license.id)
+    try {
+      const response = await fetch(`/api/extension-licenses/${license.id}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Impossibile eliminare la licenza.')
+
+      setRevealedTokens((current) => {
+        const next = { ...current }
+        delete next[license.id]
+        return next
+      })
+      await loadLicenses()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Errore inatteso.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-6">
       <div className="mx-auto max-w-6xl">
@@ -195,7 +222,7 @@ export default function ExtensionLicensesPage() {
               </p>
             ) : (
               <div className="mt-4 overflow-x-auto border border-slate-800">
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="w-full min-w-[820px] text-left text-sm">
                   <thead className="bg-slate-900 text-xs text-slate-400">
                     <tr>
                       <th className="px-4 py-3">Nome</th>
@@ -243,7 +270,7 @@ export default function ExtensionLicensesPage() {
                             <button
                               type="button"
                               onClick={() => void revealToken(license)}
-                              disabled={revealingId === license.id}
+                              disabled={revealingId === license.id || deletingId === license.id}
                               className="border border-slate-700 px-3 py-1.5 text-xs hover:border-slate-500 disabled:opacity-50"
                             >
                               {revealingId === license.id ? 'Recupero…' : 'Mostra codice'}
@@ -251,9 +278,18 @@ export default function ExtensionLicensesPage() {
                             <button
                               type="button"
                               onClick={() => void setActive(license, !license.active)}
-                              className="border border-slate-700 px-3 py-1.5 text-xs hover:border-slate-500"
+                              disabled={deletingId === license.id}
+                              className="border border-slate-700 px-3 py-1.5 text-xs hover:border-slate-500 disabled:opacity-50"
                             >
                               {license.active ? 'Disattiva' : 'Riattiva'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteLicense(license)}
+                              disabled={deletingId === license.id}
+                              className="border border-red-500/60 px-3 py-1.5 text-xs text-red-200 hover:border-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                            >
+                              {deletingId === license.id ? 'Elimino…' : 'Elimina'}
                             </button>
                           </div>
                         </td>

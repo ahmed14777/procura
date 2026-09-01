@@ -7,6 +7,7 @@ import { PROJECT_BRANDING } from '@/config/content'
 interface HeaderProps {
   role?: 'client' | 'lawyer'
   clientPaid?: boolean
+  isAdmin?: boolean
   onOpenReservedAccess?: () => void
   onLogoutSuccess?: () => void
 }
@@ -14,6 +15,7 @@ interface HeaderProps {
 export function Header({
   role = 'client',
   clientPaid = false,
+  isAdmin = false,
   onOpenReservedAccess,
   onLogoutSuccess,
 }: HeaderProps) {
@@ -76,13 +78,15 @@ export function Header({
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 Area riservata attiva
               </div>
-              <button
-                type="button"
-                onClick={() => router.push('/extension-licenses')}
-                className="shrink-0 rounded-lg border border-amber-400/30 px-3 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-300/10"
-              >
-                Licenze estensione
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/extension-licenses')}
+                  className="shrink-0 rounded-lg border border-amber-400/30 px-3 py-2 text-xs font-medium text-amber-200 transition hover:border-amber-300/60 hover:bg-amber-300/10"
+                >
+                  Licenze estensione
+                </button>
+              )}
               <button
                 type="button"
                 onClick={logout}

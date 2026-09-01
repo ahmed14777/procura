@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, type FormEvent } from 'react'
+import { useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
@@ -24,6 +24,7 @@ import { HOME_PAGE_COPY } from '@/config/content'
 export default function Home() {
   const [showLawyerModal, setShowLawyerModal] = useState(false)
   const [isLawyer, setIsLawyer] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [modeTransition, setModeTransition] = useState<'idle' | 'toLawyer' | 'toClient'>('idle')
   const [lawyerPassword, setLawyerPassword] = useState('')
   const [lawyerError, setLawyerError] = useState<string | null>(null)
@@ -39,6 +40,27 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [clientPhone, setClientPhone] = useState('')
   const checkoutOpeningRef = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/api/staff-session', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((session: { authenticated?: boolean; isAdmin?: boolean }) => {
+        if (cancelled) return
+        setIsLawyer(Boolean(session.authenticated))
+        setIsAdmin(Boolean(session.authenticated && session.isAdmin))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setIsLawyer(false)
+        setIsAdmin(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   /**
    * Handle "Scarica solo procura PDF" action
@@ -160,6 +182,7 @@ export default function Home() {
     setModeTransition('toClient')
     window.setTimeout(() => {
       setIsLawyer(false)
+      setIsAdmin(false)
       setShowLawyerModal(false)
       setLawyerPassword('')
       setLawyerError(null)
@@ -208,8 +231,8 @@ export default function Home() {
           body: JSON.stringify({ password: lawyerPassword }),
         })
 
+        const data = await response.json()
         if (!response.ok) {
-          const data = await response.json()
           throw new Error(data.error || 'Credenziali non valide')
         }
 
@@ -219,6 +242,7 @@ export default function Home() {
         setLawyerPassword('')
         window.setTimeout(() => {
           setIsLawyer(true)
+          setIsAdmin(Boolean(data.isAdmin))
           setModeTransition('idle')
         }, 540)
       } catch (err) {
@@ -284,6 +308,7 @@ export default function Home() {
       {/* Header */}
       <Header
         role={isLawyer ? 'lawyer' : 'client'}
+        isAdmin={isAdmin}
         onOpenReservedAccess={!isLawyer ? () => setShowLawyerModal(true) : undefined}
         onLogoutSuccess={isLawyer ? handleReturnToClientMode : undefined}
       />

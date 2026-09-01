@@ -58,6 +58,25 @@ interface StoredLicense extends Omit<ExtensionLicense, 'usageToday'> {
   encryptedToken: string
 }
 
+declare global {
+  var extensionLicenseStore: Map<string, StoredLicense> | undefined
+  var extensionLicenseUsage: Map<string, number> | undefined
+}
+
+const localLicenseStore = globalThis.extensionLicenseStore ?? new Map<string, StoredLicense>()
+const localLicenseUsage = globalThis.extensionLicenseUsage ?? new Map<string, number>()
+globalThis.extensionLicenseStore = localLicenseStore
+globalThis.extensionLicenseUsage = localLicenseUsage
+
+function clearLocalUsageForLicense(id: string) {
+  const prefix = `procura:extension-usage:${id}:`
+  for (const key of localLicenseUsage.keys()) {
+    if (key.startsWith(prefix)) {
+      localLicenseUsage.delete(key)
+    }
+  }
+}
+
 function licenseKey(id: string) {
   return `procura:extension-license:${id}`
 }
@@ -104,11 +123,10 @@ function toPublicLicense(stored: StoredLicense, usageToday: number): ExtensionLi
 }
 
 export function extensionLicensesConfigured() {
-  return hasRedis()
+  return hasRedis() || Boolean(process.env.SESSION_SECRET)
 }
 
 export async function createExtensionLicense(name: string) {
-  if (!hasRedis()) throw new Error('Redis non configurato.')
   const normalizedName = name.trim()
   if (!normalizedName || normalizedName.length > 80) throw new Error('Nome licenza non valido.')
 
@@ -126,37 +144,74 @@ export async function createExtensionLicense(name: string) {
     tokenHash: hashToken(token),
     encryptedToken: encryptToken(token),
   }
-  const redis = getRedis()
-  await redis.hset(licenseKey(id), stored as unknown as Record<string, unknown>)
-  await redis.sadd(LICENSE_INDEX_KEY, id)
+
+  if (hasRedis()) {
+    const redis = getRedis()
+    await redis.hset(licenseKey(id), stored as unknown as Record<string, unknown>)
+    await redis.sadd(LICENSE_INDEX_KEY, id)
+  } else {
+    localLicenseStore.set(id, stored)
+  }
+
   return { license: toPublicLicense(stored, 0), token }
 }
 
 export async function listExtensionLicenses(): Promise<ExtensionLicense[]> {
-  if (!hasRedis()) return []
-  const redis = getRedis()
-  const ids = await redis.smembers<string[]>(LICENSE_INDEX_KEY)
-  const licenses = await Promise.all(
-    ids.map(async (id) => {
-      const stored = parseStoredLicense(
-        await redis.hgetall<Record<string, unknown>>(licenseKey(id))
-      )
-      if (!stored) return null
-      const usageToday = Number(await redis.get<number>(usageKey(id))) || 0
-      return toPublicLicense(stored, usageToday)
+  if (hasRedis()) {
+    const redis = getRedis()
+    const ids = await redis.smembers<string[]>(LICENSE_INDEX_KEY)
+    const licenses = await Promise.all(
+      ids.map(async (id) => {
+        const stored = parseStoredLicense(
+          await redis.hgetall<Record<string, unknown>>(licenseKey(id))
+        )
+        if (!stored) return null
+        const usageToday = Number(await redis.get<number>(usageKey(id))) || 0
+        return toPublicLicense(stored, usageToday)
+      })
+    )
+    return licenses
+      .filter((license): license is ExtensionLicense => Boolean(license))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  }
+
+  return [...localLicenseStore.values()]
+    .map((stored) => {
+      const usageToday = localLicenseUsage.get(usageKey(stored.id))
+      return toPublicLicense(stored, usageToday || 0)
     })
-  )
-  return licenses
-    .filter((license): license is ExtensionLicense => Boolean(license))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
 }
 
 export async function setExtensionLicenseActive(id: string, active: boolean) {
-  if (!hasRedis()) throw new Error('Redis non configurato.')
-  const redis = getRedis()
-  const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+  if (hasRedis()) {
+    const redis = getRedis()
+    const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+    if (!stored) return false
+    await redis.hset(licenseKey(id), { active })
+    return true
+  }
+
+  const stored = localLicenseStore.get(id)
   if (!stored) return false
-  await redis.hset(licenseKey(id), { active })
+  stored.active = active
+  return true
+}
+
+export async function deleteExtensionLicense(id: string) {
+  if (hasRedis()) {
+    const redis = getRedis()
+    const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+    if (!stored) return false
+    await redis.del(licenseKey(id))
+    await redis.srem(LICENSE_INDEX_KEY, id)
+    await redis.del(usageKey(id))
+    return true
+  }
+
+  const deleted = localLicenseStore.delete(id)
+  if (!deleted) return false
+  clearLocalUsageForLicense(id)
   return true
 }
 
@@ -167,19 +222,52 @@ export type LicenseVerification =
 export async function verifyAndConsumeExtensionLicense(
   token: string | null
 ): Promise<LicenseVerification> {
-  if (!hasRedis()) {
-    return { ok: false, status: 503, error: 'Servizio licenze non configurato.' }
-  }
   const match = token?.match(/^e2d_([0-9a-f-]{36})_[A-Za-z0-9_-]{32}$/)
   if (!match) return { ok: false, status: 401, error: 'Licenza non valida.' }
 
-  const redis = getRedis()
-  const stored = parseStoredLicense(
-    await redis.hgetall<Record<string, unknown>>(licenseKey(match[1]))
-  )
+  if (hasRedis()) {
+    const redis = getRedis()
+    const stored = parseStoredLicense(
+      await redis.hgetall<Record<string, unknown>>(licenseKey(match[1]))
+    )
+    if (!stored || !stored.active) {
+      return { ok: false, status: 401, error: 'Licenza non valida o disattivata.' }
+    }
+    const actual = Buffer.from(hashToken(token!), 'hex')
+    const expected = Buffer.from(stored.tokenHash, 'hex')
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+      return { ok: false, status: 401, error: 'Licenza non valida.' }
+    }
+
+    const key = usageKey(stored.id)
+    const usage = await redis.incr(key)
+    if (usage === 1) await redis.expire(key, 2 * 24 * 60 * 60)
+    if (usage > DAILY_LIMIT) {
+      await redis.hset(licenseKey(stored.id), {
+        lastUsedAt: new Date().toISOString(),
+        lastStatus: 'daily_limit',
+      })
+      return {
+        ok: false,
+        status: 429,
+        error: 'Limite giornaliero di 100 documenti raggiunto.',
+        retryAfterSeconds: secondsUntilNextUtcDay(),
+      }
+    }
+
+    await redis.hincrby(licenseKey(stored.id), 'totalUsage', 1)
+    await redis.hset(licenseKey(stored.id), {
+      lastUsedAt: new Date().toISOString(),
+      lastStatus: 'accepted',
+    })
+    return { ok: true, licenseId: stored.id, name: stored.name, remaining: DAILY_LIMIT - usage }
+  }
+
+  const stored = localLicenseStore.get(match[1])
   if (!stored || !stored.active) {
     return { ok: false, status: 401, error: 'Licenza non valida o disattivata.' }
   }
+
   const actual = Buffer.from(hashToken(token!), 'hex')
   const expected = Buffer.from(stored.tokenHash, 'hex')
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
@@ -187,13 +275,12 @@ export async function verifyAndConsumeExtensionLicense(
   }
 
   const key = usageKey(stored.id)
-  const usage = await redis.incr(key)
-  if (usage === 1) await redis.expire(key, 2 * 24 * 60 * 60)
+  const usage = (localLicenseUsage.get(key) || 0) + 1
+  localLicenseUsage.set(key, usage)
+
   if (usage > DAILY_LIMIT) {
-    await redis.hset(licenseKey(stored.id), {
-      lastUsedAt: new Date().toISOString(),
-      lastStatus: 'daily_limit',
-    })
+    stored.lastUsedAt = new Date().toISOString()
+    stored.lastStatus = 'daily_limit'
     return {
       ok: false,
       status: 429,
@@ -202,18 +289,17 @@ export async function verifyAndConsumeExtensionLicense(
     }
   }
 
-  await redis.hincrby(licenseKey(stored.id), 'totalUsage', 1)
-  await redis.hset(licenseKey(stored.id), {
-    lastUsedAt: new Date().toISOString(),
-    lastStatus: 'accepted',
-  })
+  stored.totalUsage += 1
+  stored.lastUsedAt = new Date().toISOString()
+  stored.lastStatus = 'accepted'
+
   return { ok: true, licenseId: stored.id, name: stored.name, remaining: DAILY_LIMIT - usage }
 }
 
 export async function revealExtensionLicenseToken(id: string) {
-  if (!hasRedis()) throw new Error('Redis non configurato.')
-  const redis = getRedis()
-  const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+  const stored = hasRedis()
+    ? parseStoredLicense(await getRedis().hgetall<Record<string, unknown>>(licenseKey(id)))
+    : localLicenseStore.get(id)
   if (!stored) return null
   const token = decryptToken(stored.encryptedToken)
   if (!token) throw new Error('Impossibile decifrare il codice. Contatta l’amministratore.')
@@ -221,9 +307,16 @@ export async function revealExtensionLicenseToken(id: string) {
 }
 
 export async function recordExtensionLicenseStatus(id: string, status: 'success' | 'error') {
-  if (!hasRedis()) return
-  await getRedis().hset(licenseKey(id), {
-    lastUsedAt: new Date().toISOString(),
-    lastStatus: status,
-  })
+  if (hasRedis()) {
+    await getRedis().hset(licenseKey(id), {
+      lastUsedAt: new Date().toISOString(),
+      lastStatus: status,
+    })
+    return
+  }
+
+  const stored = localLicenseStore.get(id)
+  if (!stored) return
+  stored.lastUsedAt = new Date().toISOString()
+  stored.lastStatus = status
 }

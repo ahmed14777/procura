@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { STAFF_SESSION_COOKIE, verifyStaffSessionToken } from '@/lib/staffAuth'
+import {
+  ADMIN_SESSION_COOKIE,
+  STAFF_SESSION_COOKIE,
+  verifyAdminSessionToken,
+  verifyStaffSessionToken,
+} from '@/lib/staffAuth'
 import { applySecurityHeaders } from '@/lib/security'
 
 function isPublicPage(pathname: string) {
@@ -13,10 +18,14 @@ function isPublicPage(pathname: string) {
   )
 }
 
+function isAdminProtectedRequest(pathname: string) {
+  return pathname === '/extension-licenses' || pathname.startsWith('/api/extension-licenses')
+}
+
 function isProtectedRequest(request: NextRequest) {
   const { pathname } = request.nextUrl
+  if (isAdminProtectedRequest(pathname)) return true
   if (pathname.startsWith('/api/')) {
-    if (pathname.startsWith('/api/extension-licenses')) return true
     return (
       request.method === 'POST' &&
       (pathname === '/api/capture-sessions' ||
@@ -33,12 +42,27 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  const token = request.cookies.get(STAFF_SESSION_COOKIE)?.value
-  const authenticated = await verifyStaffSessionToken(token)
+  const staffToken = request.cookies.get(STAFF_SESSION_COOKIE)?.value
+  const adminToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value
+  const authenticated = await verifyStaffSessionToken(staffToken)
 
   if (request.nextUrl.pathname === '/login' && authenticated) {
     return withSecurityHeaders(NextResponse.redirect(new URL('/', request.url)))
   }
+
+  if (isAdminProtectedRequest(request.nextUrl.pathname)) {
+    const adminAuthenticated = await verifyAdminSessionToken(adminToken)
+    if (adminAuthenticated) {
+      return withSecurityHeaders(NextResponse.next())
+    }
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return withSecurityHeaders(
+        NextResponse.json({ error: 'Richiesta non autorizzata.' }, { status: 401 })
+      )
+    }
+    return withSecurityHeaders(NextResponse.redirect(new URL('/', request.url)))
+  }
+
   if (!isProtectedRequest(request) || authenticated) {
     return withSecurityHeaders(NextResponse.next())
   }

@@ -1,6 +1,9 @@
 import { createHash, timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
 import {
+  ADMIN_SESSION_COOKIE,
+  ADMIN_SESSION_SECONDS,
+  createAdminSessionToken,
   createStaffSessionToken,
   isStaffAuthConfigured,
   STAFF_SESSION_COOKIE,
@@ -81,11 +84,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Richiesta non valida.' }, { status: 400 })
   }
 
-  if (
-    !password ||
-    password.length > 200 ||
-    !passwordMatches(password, process.env.STAFF_ACCESS_PASSWORD!)
-  ) {
+  const adminPassword = process.env.ADMIN_ACCESS_PASSWORD
+  const isAdmin = !password
+    ? false
+    : Boolean(adminPassword) && passwordMatches(password, adminPassword!)
+  const isStaff = !password ? false : passwordMatches(password, process.env.STAFF_ACCESS_PASSWORD!)
+
+  if (!password || password.length > 200 || (!isAdmin && !isStaff)) {
     const failures = await recordFailure(identifier)
     const remaining = Math.max(0, MAX_ATTEMPTS - failures)
     return NextResponse.json(
@@ -99,7 +104,7 @@ export async function POST(request: Request) {
   }
 
   await clearFailures(identifier)
-  const response = NextResponse.json({ success: true })
+  const response = NextResponse.json({ success: true, isAdmin })
   response.cookies.set(STAFF_SESSION_COOKIE, await createStaffSessionToken(), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -107,5 +112,14 @@ export async function POST(request: Request) {
     path: '/',
     maxAge: STAFF_SESSION_SECONDS,
   })
+  if (isAdmin) {
+    response.cookies.set(ADMIN_SESSION_COOKIE, await createAdminSessionToken(), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: ADMIN_SESSION_SECONDS,
+    })
+  }
   return response
 }
