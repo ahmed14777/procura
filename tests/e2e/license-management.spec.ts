@@ -4,8 +4,9 @@ import { adminPassword, hasAdminPassword, loginWithPassword } from './helpers/au
 test.describe('Admin license management', () => {
   test.skip(!hasAdminPassword(), 'ADMIN_ACCESS_PASSWORD is required for license management tests.')
 
-  test('creates and toggles a license from admin page', async ({ page }) => {
+  test('creates, verifies, edits, and toggles a license from admin page', async ({ page }) => {
     const label = `QA-${Date.now()}`
+    const updatedLabel = `${label}-mod`
 
     await loginWithPassword(page, adminPassword)
     await page.getByRole('button', { name: 'Licenze estensione' }).click()
@@ -17,22 +18,37 @@ test.describe('Admin license management', () => {
     const tokenBox = page.locator('textarea[readonly]')
     await expect(tokenBox).toBeVisible()
     await expect(tokenBox).not.toHaveValue('')
+    const createdToken = await tokenBox.inputValue()
+
+    await page.getByPlaceholder('Incolla qui il codice e2d_...').fill(createdToken)
+    await page.getByRole('button', { name: 'Verifica' }).click()
+    await expect(page.getByText('Codice valido:')).toBeVisible()
 
     const row = page.locator('tr', { hasText: label })
     await expect(row).toBeVisible()
-    await row.getByRole('button', { name: 'Mostra codice' }).click()
-    await expect(row.getByRole('button', { name: 'Copia' })).toBeVisible()
 
-    await row.getByRole('button', { name: 'Disattiva' }).click()
-    await expect(row).toContainText('Disattivata')
+    await row.getByRole('button', { name: 'Modifica' }).click()
+    const inlineEditInput = page.locator('tbody input').first()
+    await expect(inlineEditInput).toBeVisible()
+    await inlineEditInput.fill(updatedLabel)
+    await page.getByRole('button', { name: 'Salva' }).click()
+    await expect(page.locator('tr', { hasText: updatedLabel })).toBeVisible()
 
-    await row.getByRole('button', { name: 'Riattiva' }).click()
-    await expect(row).toContainText('Attiva')
+    const updatedRow = page.locator('tr', { hasText: updatedLabel })
+    await expect(updatedRow).toBeVisible()
+    await updatedRow.getByRole('button', { name: 'Mostra codice' }).click()
+    await expect(updatedRow.getByRole('button', { name: 'Copia' })).toBeVisible()
+
+    await updatedRow.getByRole('button', { name: 'Disattiva' }).click()
+    await expect(updatedRow).toContainText('Disattivata')
+
+    await updatedRow.getByRole('button', { name: 'Riattiva' }).click()
+    await expect(updatedRow).toContainText('Attiva')
 
     page.once('dialog', (dialog) => {
       void dialog.accept()
     })
-    await row.getByRole('button', { name: 'Elimina' }).click()
-    await expect(page.locator('tr', { hasText: label })).toHaveCount(0)
+    await updatedRow.getByRole('button', { name: 'Elimina' }).click()
+    await expect(page.locator('tr', { hasText: updatedLabel })).toHaveCount(0)
   })
 })

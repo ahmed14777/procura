@@ -94,6 +94,20 @@ function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
 
+function extractLicenseIdFromToken(token: string | null) {
+  const normalizedToken = String(token || '').trim()
+  const match = normalizedToken.match(
+    /^e2d_([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})_[A-Za-z0-9_-]+$/
+  )
+  return match?.[1]?.toLowerCase() || null
+}
+
+function tokenMatchesHash(token: string, tokenHash: string) {
+  const actual = Buffer.from(hashToken(token), 'hex')
+  const expected = Buffer.from(tokenHash, 'hex')
+  return actual.length === expected.length && timingSafeEqual(actual, expected)
+}
+
 function parseStoredLicense(value: Record<string, unknown> | null): StoredLicense | null {
   if (!value || typeof value.id !== 'string' || typeof value.tokenHash !== 'string') return null
   return {
@@ -198,6 +212,26 @@ export async function setExtensionLicenseActive(id: string, active: boolean) {
   return true
 }
 
+export async function updateExtensionLicenseName(id: string, name: string) {
+  const normalizedName = name.trim()
+  if (!normalizedName || normalizedName.length > 80) {
+    throw new Error('Nome licenza non valido.')
+  }
+
+  if (hasRedis()) {
+    const redis = getRedis()
+    const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+    if (!stored) return false
+    await redis.hset(licenseKey(id), { name: normalizedName })
+    return true
+  }
+
+  const stored = localLicenseStore.get(id)
+  if (!stored) return false
+  stored.name = normalizedName
+  return true
+}
+
 export async function deleteExtensionLicense(id: string) {
   if (hasRedis()) {
     const redis = getRedis()
@@ -219,26 +253,103 @@ export type LicenseVerification =
   | { ok: true; licenseId: string; name: string; remaining: number }
   | { ok: false; status: 401 | 429 | 503; error: string; retryAfterSeconds?: number }
 
+export type LicenseTokenVerification =
+  | { ok: true; licenseId: string; name: string; usageToday: number; remaining: number }
+  | { ok: false; status: 401 | 503; error: string }
+
+async function findStoredLicenseByToken(
+  token: string,
+  preferredLicenseId: string | null
+): Promise<StoredLicense | null> {
+  if (hasRedis()) {
+    const redis = getRedis()
+
+    if (preferredLicenseId) {
+      const preferred = parseStoredLicense(
+        await redis.hgetall<Record<string, unknown>>(licenseKey(preferredLicenseId))
+      )
+      if (preferred && tokenMatchesHash(token, preferred.tokenHash)) {
+        return preferred
+      }
+    }
+
+    const ids = await redis.smembers<string[]>(LICENSE_INDEX_KEY)
+    for (const id of ids) {
+      if (preferredLicenseId && id === preferredLicenseId) continue
+      const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+      if (stored && tokenMatchesHash(token, stored.tokenHash)) {
+        return stored
+      }
+    }
+    return null
+  }
+
+  if (preferredLicenseId) {
+    const preferred = localLicenseStore.get(preferredLicenseId)
+    if (preferred && tokenMatchesHash(token, preferred.tokenHash)) {
+      return preferred
+    }
+  }
+
+  for (const stored of localLicenseStore.values()) {
+    if (preferredLicenseId && stored.id === preferredLicenseId) continue
+    if (tokenMatchesHash(token, stored.tokenHash)) {
+      return stored
+    }
+  }
+
+  return null
+}
+
+export async function verifyExtensionLicenseToken(
+  token: string | null
+): Promise<LicenseTokenVerification> {
+  const normalizedToken = String(token || '').trim()
+  if (!normalizedToken) {
+    return { ok: false, status: 401, error: 'Licenza non valida.' }
+  }
+
+  const licenseId = extractLicenseIdFromToken(normalizedToken)
+  const stored = await findStoredLicenseByToken(normalizedToken, licenseId)
+  if (!stored || !stored.active) {
+    return { ok: false, status: 401, error: 'Licenza non valida o disattivata.' }
+  }
+
+  if (hasRedis()) {
+    const usageToday = Number(await getRedis().get<number>(usageKey(stored.id))) || 0
+    return {
+      ok: true,
+      licenseId: stored.id,
+      name: stored.name,
+      usageToday,
+      remaining: Math.max(0, DAILY_LIMIT - usageToday),
+    }
+  }
+
+  const usageToday = localLicenseUsage.get(usageKey(stored.id)) || 0
+  return {
+    ok: true,
+    licenseId: stored.id,
+    name: stored.name,
+    usageToday,
+    remaining: Math.max(0, DAILY_LIMIT - usageToday),
+  }
+}
+
 export async function verifyAndConsumeExtensionLicense(
   token: string | null
 ): Promise<LicenseVerification> {
-  const match = token?.match(/^e2d_([0-9a-f-]{36})_[A-Za-z0-9_-]{32}$/)
-  if (!match) return { ok: false, status: 401, error: 'Licenza non valida.' }
+  const normalizedToken = String(token || '').trim()
+  if (!normalizedToken) return { ok: false, status: 401, error: 'Licenza non valida.' }
+
+  const licenseId = extractLicenseIdFromToken(normalizedToken)
+  const stored = await findStoredLicenseByToken(normalizedToken, licenseId)
+  if (!stored || !stored.active) {
+    return { ok: false, status: 401, error: 'Licenza non valida o disattivata.' }
+  }
 
   if (hasRedis()) {
     const redis = getRedis()
-    const stored = parseStoredLicense(
-      await redis.hgetall<Record<string, unknown>>(licenseKey(match[1]))
-    )
-    if (!stored || !stored.active) {
-      return { ok: false, status: 401, error: 'Licenza non valida o disattivata.' }
-    }
-    const actual = Buffer.from(hashToken(token!), 'hex')
-    const expected = Buffer.from(stored.tokenHash, 'hex')
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
-      return { ok: false, status: 401, error: 'Licenza non valida.' }
-    }
-
     const key = usageKey(stored.id)
     const usage = await redis.incr(key)
     if (usage === 1) await redis.expire(key, 2 * 24 * 60 * 60)
@@ -261,17 +372,6 @@ export async function verifyAndConsumeExtensionLicense(
       lastStatus: 'accepted',
     })
     return { ok: true, licenseId: stored.id, name: stored.name, remaining: DAILY_LIMIT - usage }
-  }
-
-  const stored = localLicenseStore.get(match[1])
-  if (!stored || !stored.active) {
-    return { ok: false, status: 401, error: 'Licenza non valida o disattivata.' }
-  }
-
-  const actual = Buffer.from(hashToken(token!), 'hex')
-  const expected = Buffer.from(stored.tokenHash, 'hex')
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
-    return { ok: false, status: 401, error: 'Licenza non valida.' }
   }
 
   const key = usageKey(stored.id)

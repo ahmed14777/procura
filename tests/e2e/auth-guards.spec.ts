@@ -30,6 +30,11 @@ test.describe('Admin guard checks', () => {
     const revealResponse = await request.post(`/api/extension-licenses/${licenseId}/reveal`)
     expect(revealResponse.status()).toBe(401)
 
+    const verifyResponse = await request.post('/api/extension-licenses/verify', {
+      data: { token: 'e2d_invalid' },
+    })
+    expect(verifyResponse.status()).toBe(401)
+
     const deleteResponse = await request.delete(`/api/extension-licenses/${licenseId}`)
     expect(deleteResponse.status()).toBe(401)
   })
