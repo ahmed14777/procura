@@ -276,7 +276,9 @@ async function findStoredLicenseByToken(
     const ids = await redis.smembers<string[]>(LICENSE_INDEX_KEY)
     for (const id of ids) {
       if (preferredLicenseId && id === preferredLicenseId) continue
-      const stored = parseStoredLicense(await redis.hgetall<Record<string, unknown>>(licenseKey(id)))
+      const stored = parseStoredLicense(
+        await redis.hgetall<Record<string, unknown>>(licenseKey(id))
+      )
       if (stored && tokenMatchesHash(token, stored.tokenHash)) {
         return stored
       }
